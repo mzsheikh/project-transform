@@ -1,0 +1,84 @@
+{
+  "schemaVersion": "1.0",
+  "formKey": "daily_safety_check",
+  "title": "Daily Safety Check",
+  "description": "Demo form to validate renderer works end-to-end",
+  "version": 1,
+  "status": "published",
+  "settings": {
+    "allowDrafts": true,
+    "allowSubmit": true,
+    "allowEditAfterSubmit": false
+  },
+  "root": {
+    "type": "layout",
+    "layoutType": "stack",
+    "id": "root",
+    "children": [
+      {
+        "type": "layout",
+        "layoutType": "section",
+        "id": "sec_worksite",
+        "label": "Worksite Info",
+        "children": [
+          {
+            "type": "control",
+            "controlType": "text",
+            "id": "c_site",
+            "key": "siteName",
+            "label": "Site Name",
+            "props": { "placeholder": "Enter site name" },
+            "validation": { "required": true, "maxLength": 80 }
+          },
+          {
+            "type": "control",
+            "controlType": "dropdown",
+            "id": "c_shift",
+            "key": "shift",
+            "label": "Shift",
+            "props": {
+              "options": [
+                { "label": "Morning", "value": "morning" },
+                { "label": "Evening", "value": "evening" },
+                { "label": "Night", "value": "night" }
+              ]
+            },
+            "validation": { "required": true }
+          }
+        ]
+      },
+      {
+        "type": "layout",
+        "layoutType": "section",
+        "id": "sec_safety",
+        "label": "Safety",
+        "children": [
+          {
+            "type": "control",
+            "controlType": "switch",
+            "id": "c_ppe",
+            "key": "ppeWorn",
+            "label": "PPE worn by all workers?",
+            "props": { "defaultValue": false },
+            "validation": { "required": true }
+          },
+          {
+            "type": "control",
+            "controlType": "multiselect",
+            "id": "c_hazards",
+            "key": "hazards",
+            "label": "Observed hazards",
+            "props": {
+              "options": [
+                { "label": "Loose cables", "value": "cables" },
+                { "label": "Wet floor", "value": "wet_floor" },
+                { "label": "No signage", "value": "signage" }
+              ]
+            },
+            "validation": { "required": false, "maxItems": 5 }
+          }
+        ]
+      }
+    ]
+  }
+}

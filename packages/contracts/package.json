@@ -1,0 +1,15 @@
+{
+  "name": "@transform/contracts",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "files": ["src"],
+  "exports": {
+    "./form-types": {
+      "types": "./src/form-types.ts"
+    },
+    ".": {
+      "types": "./src/form-types.ts"
+    }
+  }
+}

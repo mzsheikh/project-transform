@@ -1,0 +1,12 @@
+{
+  "name": "project-transform",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "dependencies": {
+    "@prisma/client": "^7.2.0",
+    "prisma": "^7.2.0"
+  }
+}

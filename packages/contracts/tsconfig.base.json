@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@transform/contracts": ["packages/contracts/src"],
+      "@transform/contracts/*": ["packages/contracts/src/*"]
+    }
+  }
+}

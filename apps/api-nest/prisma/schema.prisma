@@ -1,0 +1,167 @@
+// apps/api-nest/prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum AdminRole {
+  viewer
+  editor
+  admin
+}
+
+enum UserRole {
+  user
+  admin
+}
+
+enum AuthProvider {
+  local
+  google
+  microsoft
+}
+
+enum FormStatus {
+  draft
+  published
+  archived
+}
+
+enum SubmissionStatus {
+  draft
+  pending_sync
+  submitted
+  synced
+  failed
+}
+
+model App {
+  appCode   String   @id @map("app_code")
+  name      String
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  users       User[]
+  groups      Group[]
+  forms       Form[]
+  submissions Submission[]
+
+  @@map("apps")
+}
+
+model AdminUser {
+  id               String       @id @default(uuid()) @db.Uuid
+  email            String       @unique
+  role             AdminRole    @default(editor)
+  isActive         Boolean      @default(true) @map("is_active")
+
+  // Local login
+  passwordHash     String?      @map("password_hash")
+
+  // OAuth login (later)
+  authProvider     AuthProvider @default(local) @map("auth_provider")
+  providerUserId   String?      @map("provider_user_id")
+
+  // Refresh rotation
+  refreshTokenHash String?      @map("refresh_token_hash")
+  refreshTokenExp  DateTime?    @map("refresh_token_exp")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([authProvider, providerUserId])
+  @@map("admin_users")
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  appCode      String   @map("app_code")
+  username     String
+  passwordHash String   @map("password_hash")
+  role         UserRole @default(user)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  app App @relation(fields: [appCode], references: [appCode], onDelete: Cascade)
+
+  groupMemberships GroupMember[]
+  createdForms     Form[] @relation("FormCreatedBy")
+  submissions      Submission[]
+
+  @@unique([appCode, username])
+  @@index([appCode, username])
+  @@map("users")
+}
+
+model Group {
+  id        String   @id @default(uuid()) @db.Uuid
+  appCode   String   @map("app_code")
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  app App @relation(fields: [appCode], references: [appCode], onDelete: Cascade)
+
+  members GroupMember[]
+
+  @@unique([appCode, name])
+  @@index([appCode, name])
+  @@map("groups")
+}
+
+model GroupMember {
+  groupId String @map("group_id") @db.Uuid
+  userId  String @map("user_id") @db.Uuid
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, userId])
+  @@index([userId])
+  @@map("group_members")
+}
+
+model Form {
+  id          String     @id @default(uuid()) @db.Uuid
+  appCode     String     @map("app_code")
+  formKey     String     @map("form_key")
+  version     Int
+  status      FormStatus @default(draft)
+  title       String
+  description String?
+  schemaJson  Json       @map("schema_json")
+
+  createdById String?  @map("created_by") @db.Uuid
+  createdBy   User?    @relation("FormCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  app App @relation(fields: [appCode], references: [appCode], onDelete: Cascade)
+
+  @@unique([appCode, formKey, version])
+  @@index([appCode, formKey, status])
+  @@map("forms")
+}
+
+model Submission {
+  id         String           @id @default(uuid()) @db.Uuid
+  appCode    String           @map("app_code")
+  formKey    String           @map("form_key")
+  formVersion Int             @map("form_version")
+
+  userId     String?          @map("user_id") @db.Uuid
+  user       User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  status     SubmissionStatus @default(draft)
+  dataJson   Json             @default("{}") @map("data_json")
+
+  createdAt  DateTime         @default(now()) @map("created_at")
+  updatedAt  DateTime         @updatedAt @map("updated_at")
+
+  app App @relation(fields: [appCode], references: [appCode], onDelete: Cascade)
+
+  @@index([appCode, formKey, createdAt(sort: Desc)])
+  @@map("submissions")
+}
