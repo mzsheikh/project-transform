@@ -1,5 +1,5 @@
 import { API_BASE_URL } from "../config";
-import type { FormDefinition } from "@contracts/form-types";
+import type { FormDefinition } from "@transform/contracts/form-types";
 
 export type BootstrapFormItem = {
   formKey: string;
@@ -16,6 +16,7 @@ export type BootstrapResponse = {
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...(init?.headers ?? {}),

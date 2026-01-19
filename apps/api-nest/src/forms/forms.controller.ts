@@ -1,7 +1,10 @@
-import { Body, Controller, Get, Param, Post, Put } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Put, UseGuards } from "@nestjs/common";
 import { FormsService } from "./forms.service";
 import { CreateDraftFormDto } from "./dto/create-draft-form.dto";
 import { UpdateDraftFormDto } from "./dto/update-draft-form.dto";
+import { JwtAuthGuard } from "../auth/jwt.guard";
+import { RolesGuard } from "../auth/roles.guard";
+import { Roles } from "../auth/roles.decorator";
 
 @Controller()
 export class FormsController {
@@ -12,11 +15,15 @@ export class FormsController {
     return this.forms.list(appCode.toUpperCase());
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("editor")
   @Post("apps/:appCode/forms")
   createDraft(@Param("appCode") appCode: string, @Body() dto: CreateDraftFormDto) {
     return this.forms.createDraft(appCode.toUpperCase(), dto);
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("editor")
   @Put("apps/:appCode/forms/:formKey/draft")
   updateDraft(
     @Param("appCode") appCode: string,
@@ -26,6 +33,8 @@ export class FormsController {
     return this.forms.updateDraft(appCode.toUpperCase(), formKey, dto);
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("editor")
   @Post("apps/:appCode/forms/:formKey/publish")
   publish(@Param("appCode") appCode: string, @Param("formKey") formKey: string) {
     return this.forms.publish(appCode.toUpperCase(), formKey);
