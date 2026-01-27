@@ -103,4 +103,12 @@ export class FormsService {
     if (!latest) throw new NotFoundException("Published form not found");
     return latest;
   }
+
+  async deleteForm(appCode: string, formKey: string) {
+    const result = await this.prisma.form.deleteMany({
+      where: { appCode, formKey },
+    });
+    if (result.count === 0) throw new NotFoundException("Form not found");
+    return { deleted: result.count };
+  }
 }

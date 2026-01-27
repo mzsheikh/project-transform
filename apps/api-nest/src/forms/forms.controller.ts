@@ -1,10 +1,11 @@
-import { Body, Controller, Get, Param, Post, Put, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from "@nestjs/common";
 import { FormsService } from "./forms.service";
 import { CreateDraftFormDto } from "./dto/create-draft-form.dto";
 import { UpdateDraftFormDto } from "./dto/update-draft-form.dto";
 import { JwtAuthGuard } from "../auth/jwt.guard";
 import { RolesGuard } from "../auth/roles.guard";
 import { Roles } from "../auth/roles.decorator";
+import { AiServiceGuard } from "../auth/ai-service.guard";
 
 @Controller()
 export class FormsController {
@@ -33,6 +34,27 @@ export class FormsController {
     return this.forms.updateDraft(appCode.toUpperCase(), formKey, dto);
   }
 
+    // ----------------------------
+  // INTERNAL (FastAPI-only)
+  // ----------------------------
+
+  @UseGuards(AiServiceGuard)
+  @Post("internal/apps/:appCode/forms")
+  createDraftInternal(@Param("appCode") appCode: string, @Body() dto: CreateDraftFormDto) {
+    // createdById optional; keep null for AI
+    return this.forms.createDraft(appCode.toUpperCase(), dto, undefined);
+  }
+
+  @UseGuards(AiServiceGuard)
+  @Put("internal/apps/:appCode/forms/:formKey/draft")
+  updateDraftInternal(
+    @Param("appCode") appCode: string,
+    @Param("formKey") formKey: string,
+    @Body() dto: UpdateDraftFormDto,
+  ) {
+    return this.forms.updateDraft(appCode.toUpperCase(), formKey, dto);
+  }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles("editor")
   @Post("apps/:appCode/forms/:formKey/publish")
@@ -43,5 +65,12 @@ export class FormsController {
   @Get("apps/:appCode/forms/:formKey/latest")
   latest(@Param("appCode") appCode: string, @Param("formKey") formKey: string) {
     return this.forms.latestPublished(appCode.toUpperCase(), formKey);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("editor")
+  @Delete("apps/:appCode/forms/:formKey")
+  deleteForm(@Param("appCode") appCode: string, @Param("formKey") formKey: string) {
+    return this.forms.deleteForm(appCode.toUpperCase(), formKey);
   }
 }
