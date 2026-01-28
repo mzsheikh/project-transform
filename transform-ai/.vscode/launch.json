@@ -1,0 +1,17 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "FastAPI (apps/ai-fastapi)",
+      "type": "python",
+      "request": "launch",
+      "module": "uvicorn",
+      "cwd": "${workspaceFolder}/apps/ai-fastapi",
+      "args": [
+        "main:app",
+        "--reload"
+      ],
+      "envFile": "${workspaceFolder}/apps/ai-fastapi/.env"
+    }
+  ]
+}
