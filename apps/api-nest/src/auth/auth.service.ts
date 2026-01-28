@@ -3,6 +3,12 @@ import { JwtService } from "@nestjs/jwt";
 import type { Request, Response } from "express";
 import * as argon2 from "argon2";
 import { PrismaService } from "../prisma/prisma.service";
+import {
+  ACCESS_COOKIE_MAX_AGE_MS,
+  ACCESS_TOKEN_EXPIRES_IN,
+  REFRESH_COOKIE_MAX_AGE_MS,
+  REFRESH_TOKEN_EXPIRES_IN,
+} from "./auth.constants";
 
 const ACCESS_COOKIE = "admin_access";
 const REFRESH_COOKIE = "admin_refresh";
@@ -24,14 +30,14 @@ export class AuthService {
   private async signAccess(admin: { id: string; email: string; role: string }) {
     return this.jwt.signAsync(
       { sub: admin.id, email: admin.email, role: admin.role },
-      { secret: process.env.JWT_ACCESS_SECRET!, expiresIn: "15m" }
+      { secret: process.env.JWT_ACCESS_SECRET!, expiresIn: ACCESS_TOKEN_EXPIRES_IN }
     );
   }
 
   private async signRefresh(admin: { id: string }) {
     return this.jwt.signAsync(
       { sub: admin.id, typ: "refresh" },
-      { secret: process.env.JWT_REFRESH_SECRET!, expiresIn: "30d" }
+      { secret: process.env.JWT_REFRESH_SECRET!, expiresIn: REFRESH_TOKEN_EXPIRES_IN }
     );
   }
 
@@ -48,15 +54,15 @@ export class AuthService {
     const refreshToken = await this.signRefresh({ id: admin.id });
 
     const refreshTokenHash = await argon2.hash(refreshToken);
-    const refreshTokenExp = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const refreshTokenExp = new Date(Date.now() + REFRESH_COOKIE_MAX_AGE_MS);
 
     await this.prisma.adminUser.update({
       where: { id: admin.id },
       data: { refreshTokenHash, refreshTokenExp },
     });
 
-    res.cookie(ACCESS_COOKIE, accessToken, { ...this.cookieOptions(), maxAge: 15 * 60 * 1000 });
-    res.cookie(REFRESH_COOKIE, refreshToken, { ...this.cookieOptions(), maxAge: 30 * 24 * 60 * 60 * 1000 });
+    res.cookie(ACCESS_COOKIE, accessToken, { ...this.cookieOptions(), maxAge: ACCESS_COOKIE_MAX_AGE_MS });
+    res.cookie(REFRESH_COOKIE, refreshToken, { ...this.cookieOptions(), maxAge: REFRESH_COOKIE_MAX_AGE_MS });
 
     return { ok: true };
   }
@@ -89,12 +95,12 @@ export class AuthService {
       where: { id: admin.id },
       data: {
         refreshTokenHash: await argon2.hash(newRefresh),
-        refreshTokenExp: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        refreshTokenExp: new Date(Date.now() + REFRESH_COOKIE_MAX_AGE_MS),
       },
     });
 
-    res.cookie(ACCESS_COOKIE, newAccess, { ...this.cookieOptions(), maxAge: 15 * 60 * 1000 });
-    res.cookie(REFRESH_COOKIE, newRefresh, { ...this.cookieOptions(), maxAge: 30 * 24 * 60 * 60 * 1000 });
+    res.cookie(ACCESS_COOKIE, newAccess, { ...this.cookieOptions(), maxAge: ACCESS_COOKIE_MAX_AGE_MS });
+    res.cookie(REFRESH_COOKIE, newRefresh, { ...this.cookieOptions(), maxAge: REFRESH_COOKIE_MAX_AGE_MS });
 
     return { ok: true };
   }
