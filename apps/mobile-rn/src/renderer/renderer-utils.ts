@@ -1,5 +1,5 @@
-import type { LayoutNode, Node, OptionItem } from "@contracts/form-types";
-import type { FileRefLocal, SubmissionDataValue } from "@contracts/submission-types";
+import type { LayoutNode, Node, OptionItem } from "@transform/contracts/form-types";
+import type { FileRefLocal, SubmissionDataValue } from "@transform/contracts/submission-types";
 
 export function collectRequiredKeys(root: LayoutNode): string[] {
   const keys: string[] = [];

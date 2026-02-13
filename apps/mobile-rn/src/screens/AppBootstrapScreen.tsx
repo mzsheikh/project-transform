@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
-import { View, Text, TextInput, Pressable, FlatList, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, TextInput, Pressable, FlatList, ActivityIndicator, StyleSheet, SafeAreaView } from "react-native";
 
-import type { FormDefinition } from "@contracts/form-types";
+import type { FormDefinition } from "@transform/contracts/form-types";
 import { api, type BootstrapFormItem } from "../api/client";
 import { FormRenderer } from "../renderer/FormRenderer";
 
@@ -139,16 +139,18 @@ export function AppBootstrapScreen() {
   // renderForm
   return (
     <View style={styles.full}>
-      <View style={styles.topBar}>
-        <Pressable
-          style={styles.secondaryBtn}
-          onPress={() => setStage({ kind: "chooseForm", appCode: stage.appCode, forms: stage.forms })}
-        >
-          <Text style={styles.secondaryBtnText}>Back to forms</Text>
-        </Pressable>
+      <SafeAreaView style={styles.safeTop}>
+        <View style={styles.topBar}>
+          <Pressable
+            style={styles.secondaryBtn}
+            onPress={() => setStage({ kind: "chooseForm", appCode: stage.appCode, forms: stage.forms })}
+          >
+            <Text style={styles.secondaryBtnText}>Back to forms</Text>
+          </Pressable>
 
-        <Text style={styles.topBarTitle}>{stage.appCode}</Text>
-      </View>
+          <Text style={styles.topBarTitle}>{stage.appCode}</Text>
+        </View>
+      </SafeAreaView>
 
       <FormRenderer
         form={stage.form}
@@ -204,6 +206,7 @@ const styles = StyleSheet.create({
   cardMeta: { opacity: 0.7, fontSize: 12 },
   cardDesc: { opacity: 0.85, marginTop: 4 },
 
-  topBar: { padding: 12, paddingTop: 18, borderBottomWidth: 1, borderColor: "#eee", flexDirection: "row", gap: 10, alignItems: "center" },
+  safeTop: { backgroundColor: "#fff" },
+  topBar: { padding: 12, borderBottomWidth: 1, borderColor: "#eee", flexDirection: "row", gap: 10, alignItems: "center" },
   topBarTitle: { fontWeight: "700", marginLeft: "auto" },
 });

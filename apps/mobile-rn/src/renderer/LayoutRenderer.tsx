@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text } from "react-native";
 
-import type { LayoutNode, Node } from "@contracts/form-types";
+import type { LayoutNode, Node } from "@transform/contracts/form-types";
 
 import { styles } from "./renderer-styles";
 

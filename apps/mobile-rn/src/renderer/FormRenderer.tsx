@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { View, Text, Pressable, ScrollView } from "react-native";
 
-import type { FormDefinition } from "@contracts/form-types";
+import type { FormDefinition } from "@transform/contracts/form-types";
 
-import type { SubmissionDataValue } from "@contracts/submission-types";
-import { findControlNode, validateControlValue, validateFormData } from "@contracts/form-validators";
+import type { SubmissionDataValue } from "@transform/contracts/submission-types";
+import { findControlNode, validateControlValue, validateFormData } from "@transform/contracts/form-validators";
 
 import { NodeRenderer } from "./NodeRenderer";
 import { styles } from "./renderer-styles";

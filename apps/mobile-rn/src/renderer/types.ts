@@ -1,4 +1,4 @@
-import type { SubmissionDataValue } from "@contracts/submission-types";
+import type { SubmissionDataValue } from "@transform/contracts/submission-types";
 
 export type FormState = Record<string, SubmissionDataValue>;
 

@@ -1,8 +1,8 @@
 import React from "react";
 import { Alert, View, StyleSheet } from "react-native";
 
-import type { FormDefinition } from "@contracts/form-types";
-import type { SubmissionPayload } from "@contracts/submission-types";
+import type { FormDefinition } from "@transform/contracts/form-types";
+import type { SubmissionPayload } from "@transform/contracts/submission-types";
 
 import { FormRenderer } from "../renderer/FormRenderer";
 

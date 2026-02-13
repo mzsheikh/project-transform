@@ -1,7 +1,7 @@
 import React from "react";
 
-import type { ControlNode, ControlType } from "@contracts/form-types";
-import type { SubmissionDataValue } from "@contracts/submission-types";
+import type { ControlNode, ControlType } from "@transform/contracts/form-types";
+import type { SubmissionDataValue } from "@transform/contracts/submission-types";
 
 import type { SetValue } from "../types";
 

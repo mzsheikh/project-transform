@@ -2,7 +2,7 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@contracts/*": ["../../packages/contracts/*"]
+      "@transform/contracts/*": ["../../packages/contracts/*"]
     }
   },
   "extends": "expo/tsconfig.base"

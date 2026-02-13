@@ -2,8 +2,8 @@ import React from "react";
 import { View } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 
-import type { ControlNode } from "@contracts/form-types";
-import type { SubmissionDataValue } from "@contracts/submission-types";
+import type { ControlNode } from "@transform/contracts/form-types";
+import type { SubmissionDataValue } from "@transform/contracts/submission-types";
 
 import type { SetValue } from "../types";
 import { getOptions } from "../renderer-utils";

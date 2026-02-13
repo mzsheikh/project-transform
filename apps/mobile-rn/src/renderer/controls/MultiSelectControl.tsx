@@ -1,8 +1,8 @@
 import React from "react";
 import { Pressable, Text, View } from "react-native";
 
-import type { ControlNode, OptionItem } from "@contracts/form-types";
-import type { SubmissionDataValue } from "@contracts/submission-types";
+import type { ControlNode, OptionItem } from "@transform/contracts/form-types";
+import type { SubmissionDataValue } from "@transform/contracts/submission-types";
 
 import type { SetValue } from "../types";
 import { getOptions } from "../renderer-utils";

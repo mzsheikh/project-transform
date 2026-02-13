@@ -6,10 +6,24 @@
   "files": ["src"],
   "exports": {
     "./form-types": {
-      "types": "./src/form-types.ts"
+      "types": "./src/form-types.ts",
+      "import": "./src/form-types.ts",
+      "default": "./src/form-types.ts"
+    },
+    "./submission-types": {
+      "types": "./src/submission-types.ts",
+      "import": "./src/submission-types.ts",
+      "default": "./src/submission-types.ts"
+    },
+    "./form-validators": {
+      "types": "./src/form-validators.ts",
+      "import": "./src/form-validators.ts",
+      "default": "./src/form-validators.ts"
     },
     ".": {
-      "types": "./src/form-types.ts"
+      "types": "./src/form-types.ts",
+      "import": "./src/form-types.ts",
+      "default": "./src/form-types.ts"
     }
   }
 }

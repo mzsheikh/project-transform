@@ -2,8 +2,8 @@ import React, { useRef } from "react";
 import { Platform, Pressable, Text, View } from "react-native";
 import SignatureScreen, { type SignatureViewRef } from "react-native-signature-canvas";
 
-import type { ControlNode } from "@contracts/form-types";
-import type { FileRefLocal, SubmissionDataValue } from "@contracts/submission-types";
+import type { ControlNode } from "@transform/contracts/form-types";
+import type { FileRefLocal, SubmissionDataValue } from "@transform/contracts/submission-types";
 
 import type { SetValue } from "../types";
 import { cryptoLikeId, isFileRef } from "../renderer-utils";

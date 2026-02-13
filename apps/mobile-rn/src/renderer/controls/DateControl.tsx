@@ -2,8 +2,8 @@ import React, { useState } from "react";
 import { Platform, Pressable, Text, TextInput, View } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 
-import type { ControlNode, DateProps } from "@contracts/form-types";
-import type { SubmissionDataValue } from "@contracts/submission-types";
+import type { ControlNode, DateProps } from "@transform/contracts/form-types";
+import type { SubmissionDataValue } from "@transform/contracts/submission-types";
 
 import type { SetValue } from "../types";
 import { styles } from "../renderer-styles";

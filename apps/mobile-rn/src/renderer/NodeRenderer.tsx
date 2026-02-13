@@ -1,6 +1,6 @@
 import React from "react";
 
-import type { Node } from "@contracts/form-types";
+import type { Node } from "@transform/contracts/form-types";
 
 import type { FormState, SetValue } from "./types";
 
