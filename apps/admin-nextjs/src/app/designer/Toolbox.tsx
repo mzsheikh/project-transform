@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import type { ReactNode } from "react";
+import type { DragEvent, ReactNode } from "react";
 import type { ControlNode, LayoutNode } from "@transform/contracts/form-types";
 
 export type ToolboxItem =
@@ -31,6 +31,15 @@ const CONTROLS: ToolboxEntry[] = [
 ];
 
 export function Toolbox({ onAdd }: { onAdd: (item: ToolboxItem) => void }) {
+  function dragStart(item: ToolboxItem) {
+    return (event: DragEvent<HTMLButtonElement>) => {
+      const payload = JSON.stringify(item);
+      event.dataTransfer.setData("application/x-form-designer-item", payload);
+      event.dataTransfer.setData("text/plain", payload);
+      event.dataTransfer.effectAllowed = "copy";
+    };
+  }
+
   return (
     <aside style={panel}>
       <h3 style={h3}>Toolbox</h3>
@@ -39,7 +48,13 @@ export function Toolbox({ onAdd }: { onAdd: (item: ToolboxItem) => void }) {
         <div style={label}>Layouts</div>
         <div style={grid}>
           {LAYOUTS.map((x) => (
-            <button key={x.label} style={btn} onClick={() => onAdd(x.item)}>
+            <button
+              key={x.label}
+              style={btn}
+              draggable
+              onDragStart={dragStart(x.item)}
+              onClick={() => onAdd(x.item)}
+            >
               <span style={btnContent}>
                 <span style={iconWrap}>{x.icon}</span>
                 <span style={btnLabel}>{x.label}</span>
@@ -53,7 +68,13 @@ export function Toolbox({ onAdd }: { onAdd: (item: ToolboxItem) => void }) {
         <div style={label}>Controls</div>
         <div style={grid}>
           {CONTROLS.map((x) => (
-            <button key={x.label} style={btn} onClick={() => onAdd(x.item)}>
+            <button
+              key={x.label}
+              style={btn}
+              draggable
+              onDragStart={dragStart(x.item)}
+              onClick={() => onAdd(x.item)}
+            >
               <span style={btnContent}>
                 <span style={iconWrap}>{x.icon}</span>
                 <span style={btnLabel}>{x.label}</span>
@@ -64,7 +85,7 @@ export function Toolbox({ onAdd }: { onAdd: (item: ToolboxItem) => void }) {
       </div>
 
       <p style={{ fontSize: 12, opacity: 0.85, marginTop: 12 }}>
-        Tip: select a layout to insert inside it. If a control is selected, inserts go to root.
+        Tip: click to add at selected layout. Drag to drop at a specific position in the canvas.
       </p>
     </aside>
   );
@@ -105,7 +126,7 @@ const btn: React.CSSProperties = {
   borderRadius: 12,
   border: "1px solid #111",
   background: "#fff",
-  cursor: "pointer",
+  cursor: "grab",
   fontWeight: 700,
   fontSize: 12,
 };

@@ -58,13 +58,19 @@ function removeNodeDeep(nodes: Node[], id: string): Node[] {
   return out;
 }
 
-function addChildToLayout(nodes: Node[], layoutId: string, child: Node): Node[] {
+function insertChildToLayout(nodes: Node[], layoutId: string, child: Node, insertIndex?: number): Node[] {
   return nodes.map((n) => {
     if (n.id === layoutId && n.type === "layout") {
-      return { ...n, children: [...n.children, child] };
+      const children = [...n.children];
+      const idx =
+        insertIndex == null || insertIndex < 0 || insertIndex >= children.length
+          ? children.length
+          : insertIndex;
+      children.splice(idx, 0, child);
+      return { ...n, children };
     }
     if (n.type === "layout") {
-      return { ...n, children: addChildToLayout(n.children, layoutId, child) };
+      return { ...n, children: insertChildToLayout(n.children, layoutId, child, insertIndex) };
     }
     return n;
   });
@@ -114,8 +120,16 @@ export type DesignerState = {
 
   updateNode: (id: string, patch: Partial<LayoutNode> | Partial<ControlNode>) => void;
   removeNode: (id: string) => void;
-  addLayout: (parentLayoutId: string, layoutType: LayoutNode["layoutType"]) => void;
-  addControl: (parentLayoutId: string, controlType: ControlNode["controlType"]) => void;
+  addLayout: (
+    parentLayoutId: string,
+    layoutType: LayoutNode["layoutType"],
+    insertIndex?: number
+  ) => void;
+  addControl: (
+    parentLayoutId: string,
+    controlType: ControlNode["controlType"],
+    insertIndex?: number
+  ) => void;
 
   getSelectedNode: () => Node | null;
 };
@@ -212,7 +226,7 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
     }));
   },
 
-  addLayout: (parentLayoutId, layoutType) => {
+  addLayout: (parentLayoutId, layoutType, insertIndex) => {
     const cur = get().schema;
     if (!cur) return;
 
@@ -226,8 +240,22 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
 
     const nextRoot: LayoutNode =
       cur.root.id === parentLayoutId
-        ? { ...cur.root, children: [...cur.root.children, newLayout] }
-        : { ...cur.root, children: addChildToLayout(cur.root.children, parentLayoutId, newLayout) };
+        ? {
+            ...cur.root,
+            children: (() => {
+              const children = [...cur.root.children];
+              const idx =
+                insertIndex == null || insertIndex < 0 || insertIndex >= children.length
+                  ? children.length
+                  : insertIndex;
+              children.splice(idx, 0, newLayout);
+              return children;
+            })(),
+          }
+        : {
+            ...cur.root,
+            children: insertChildToLayout(cur.root.children, parentLayoutId, newLayout, insertIndex),
+          };
 
     const next: FormDefinition = {
       ...cur,
@@ -242,7 +270,7 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
     }));
   },
 
-  addControl: (parentLayoutId, controlType) => {
+  addControl: (parentLayoutId, controlType, insertIndex) => {
     const cur = get().schema;
     if (!cur) return;
 
@@ -257,8 +285,22 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
 
     const nextRoot: LayoutNode =
       cur.root.id === parentLayoutId
-        ? { ...cur.root, children: [...cur.root.children, newControl] }
-        : { ...cur.root, children: addChildToLayout(cur.root.children, parentLayoutId, newControl) };
+        ? {
+            ...cur.root,
+            children: (() => {
+              const children = [...cur.root.children];
+              const idx =
+                insertIndex == null || insertIndex < 0 || insertIndex >= children.length
+                  ? children.length
+                  : insertIndex;
+              children.splice(idx, 0, newControl);
+              return children;
+            })(),
+          }
+        : {
+            ...cur.root,
+            children: insertChildToLayout(cur.root.children, parentLayoutId, newControl, insertIndex),
+          };
 
     const next: FormDefinition = {
       ...cur,

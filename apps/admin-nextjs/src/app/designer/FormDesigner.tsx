@@ -54,7 +54,7 @@ export function FormDesigner({
     return schema.root.id;
   }, [selectedNode, schema]);
 
-  function addFromToolbox(item: any) {
+  function addFromToolbox(item: ToolboxItem) {
     if (!schema) return;
 
     // insert under selected layout; if control selected, insert under root
@@ -64,6 +64,18 @@ export function FormDesigner({
       addLayout(targetLayoutId, item.layoutType);
     } else {
       addControl(targetLayoutId, item.controlType);
+    }
+
+    setStatus("");
+  }
+
+  function insertFromToolbox(item: ToolboxItem, parentLayoutId: string, insertIndex: number) {
+    if (!schema) return;
+
+    if (item.kind === "layout") {
+      addLayout(parentLayoutId, item.layoutType, insertIndex);
+    } else {
+      addControl(parentLayoutId, item.controlType, insertIndex);
     }
 
     setStatus("");
@@ -136,6 +148,9 @@ export function FormDesigner({
             setStatus("");
           }}
           onDelete={deleteNode}
+          onDropItem={(toolboxItem, parentLayoutId, insertIndex) => {
+            insertFromToolbox(toolboxItem, parentLayoutId, insertIndex);
+          }}
         />
       </div>
 
