@@ -1,5 +1,20 @@
+python3 -m venv .venv
 source .venv/bin/activate
-uvicorn main:app --reload --port 8001
+--------------
+python3 -m pip install "uvicorn[standard]"
+python3 -m pip install "fastapi[standard]"
+python3 -m pip install "SQLAlchemy"
+python3 -m pip install pgvector
+python3 -m pip install "psycopg[binary]"
+python3 -m pip install sentence-transformers
+or
+python3 -m pip install -r requirements.txt
+------------
+python3 -m uvicorn main:app --reload --port 8001
+python3 -m uvicorn main:app --reload --port 8001 --app-dir apps/ai-fastapi
+or 
+cd apps/ai-fastapi
+fastapi dev
 
 curl http://localhost:8001/health
 

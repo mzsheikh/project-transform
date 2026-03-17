@@ -44,6 +44,9 @@ class Citation(BaseModel):
     contentPreview: str
 
 class GenerateDraftResp(BaseModel):
-    schema: Dict[str, Any]
+    schema_: Dict[str, Any] = Field(..., alias="schema")
     citations: List[Citation]
     extracted: Dict[str, Any]
+
+    class Config:
+        allow_population_by_field_name = True

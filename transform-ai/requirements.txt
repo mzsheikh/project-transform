@@ -1,0 +1,6 @@
+uvicorn[standard]
+fastapi[standard]
+SQLAlchemy
+pgvector
+psycopg[binary]
+sentence-transformers
