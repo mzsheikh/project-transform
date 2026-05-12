@@ -184,10 +184,11 @@ All generated schemas MUST follow:
     layoutType: "form";
     children: Node[];
   }
-}```
+}
+```
 
 Control Node Shape
-
+```ts
 {
   id: string;
   type: "control";
@@ -196,15 +197,17 @@ Control Node Shape
   label: string;
   props: Record<string, any>;
 }
+```
 
 Layout Node Shape
-
+```ts
 {
   id: string;
   type: "layout";
   layoutType: string;
   children: Node[];
 }
+```
 
 Supported Control Types
 
@@ -275,8 +278,10 @@ use internal service token
 DO NOT use user JWT auth
 
 Example:
+```ts
 @UseGuards(AiServiceGuard)
 @Post("internal/apps/:appCode/forms")
+```
 
 Draft Rules
 
@@ -319,7 +324,9 @@ Query Key Rules
 Always centralize query keys.
 
 Example:
+```ts
 qk.forms(appCode)
+```
 
 Never inline random query keys across the app.
 
@@ -382,7 +389,9 @@ TypeScript
 STRICT typing preferred.
 
 Avoid:
+```ts
 any
+```
 
 Use:
 
@@ -425,7 +434,9 @@ Avoid generic throw Error().
 FastAPI
 
 Use:
+```PYTHON
 HTTPException(status_code=...)
+```
 
 Internal API Errors
 
@@ -472,6 +483,7 @@ bypass Prisma
 bypass internal APIs
 add unnecessary abstractions
 create hidden magic behavior
+
 11. Preferred Future Enhancements
 
 Planned:
@@ -486,14 +498,20 @@ human review workflow
 embeddings for published forms
 semantic form search
 multilingual extraction
+
 12. Development Workflow
 Backend
 
 Run Nest:
+
+```Bash
 pnpm start:dev
+```
 
 Run FastAPI:
+```Bash
 uvicorn main:app --reload --port 8000
+```
 
 Typical Flow
 ingest/pdf
