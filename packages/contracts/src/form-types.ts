@@ -89,6 +89,37 @@ export type ControlProps =
   | SignatureProps
   | FileProps;
 
+export interface BaseControlProps {
+  placeholder?: string;
+  required?: boolean;
+  disabled?: boolean;
+  readOnly?: boolean;
+  helpText?: string;
+  errorMessage?: string;
+  defaultValue?: unknown;
+  autoFocus?: boolean;
+  accessibilityLabel?: string;
+  accessible?: boolean;
+  testID?: string;
+  style?: ControlStyleProps;
+}
+
+export interface ControlStyleProps {
+  width?: number | string;
+  padding?: number;
+  margin?: number;
+  borderRadius?: number;
+  fontSize?: number;
+  color?: string;
+  backgroundColor?: string;
+}
+
+export interface RNOption {
+  label: string;
+  value: string;
+  disabled?: boolean;
+}
+
 export interface ValidationRules {
   required?: boolean;
 
@@ -103,47 +134,120 @@ export interface ValidationRules {
 }
 
 /** --- Individual control props --- */
-export interface TextProps {
-  placeholder?: string;
-  maxLength?: number;
+export interface TextProps extends BaseControlProps {
+  /** React Native TextInput */
+  keyboardType?:
+    | "default"
+    | "email-address"
+    | "numeric"
+    | "phone-pad"
+    | "url"
+    | "decimal"
+    | "number-pad"
+    | "ascii-capable"
+    | "visible-password"
+    | "web-search";
+  autoCapitalize?: "none" | "sentences" | "words" | "characters";
+  autoCorrect?: boolean;
+  autoComplete?: string;
+  secureTextEntry?: boolean;
   multiline?: boolean;
+  textAlign?: "left" | "center" | "right" | "auto";
+  returnKeyType?: "done" | "next" | "search" | "go" | "send";
+  blurOnSubmit?: boolean;
+  maxLength?: number;
+  /** legacy maxLength kept for compatibility */
+  // keep in control props for validation usage and compatibility with previous schema
+  minLength?: number;
 }
 
-export interface NumberProps {
-  placeholder?: string;
+export interface NumberProps extends BaseControlProps {
+  /** React Native TextInput for numeric entry */
+  keyboardType?: "number-pad" | "decimal-pad" | "numeric";
+  integerOnly?: boolean;
+  precision?: number;
+  allowNegative?: boolean;
+  format?: "decimal" | "currency";
   min?: number;
   max?: number;
   step?: number;
 }
 
-export interface SwitchProps {
+export interface SwitchProps extends BaseControlProps {
   defaultValue?: boolean;
+  trackColor?: {
+    true: string;
+    false: string;
+  };
+  thumbColor?: string;
+  ios_backgroundColor?: string;
+  onTintColor?: string;
 }
 
-export interface OptionItem {
+export interface OptionItem extends RNOption {
   label: string;
   value: string;
 }
 
-export interface DropdownProps {
-  options: OptionItem[];
+export interface DropdownProps extends BaseControlProps {
+  options: RNOption[];
+  searchable?: boolean;
+  mode?: "default" | "modal" | "dropdown";
+  clearable?: boolean;
+  closeAfterSelect?: boolean;
+  showSearchInput?: boolean;
+  disabled?: boolean;
 }
 
-export interface MultiSelectProps {
-  options: OptionItem[];
+export interface MultiSelectProps extends BaseControlProps {
+  options: RNOption[];
+  searchable?: boolean;
+  mode?: "default" | "modal" | "dropdown";
+  clearable?: boolean;
+  closeAfterSelect?: boolean;
+  showSearchInput?: boolean;
+  minSelected?: number;
   maxSelected?: number;
+  disabled?: boolean;
+  chipStyle?: "outlined" | "filled" | "compact";
 }
 
-export interface DateProps {
-  mode?: "date" | "datetime";
+export interface DateProps extends BaseControlProps {
+  mode?: "date" | "time" | "datetime";
+  display?: "default" | "spinner" | "calendar" | "clock";
+  minimumDate?: string;
+  maximumDate?: string;
+  minuteInterval?: 1 | 5 | 10 | 15 | 30;
+  locale?: string;
+  timezone?: string;
+  show24Hours?: boolean;
+  timeZoneOffsetInMinutes?: number;
 }
 
-export interface SignatureProps {
-  format?: "png" | "jpg";
+export interface SignatureProps extends BaseControlProps {
+  imageType?: "png" | "jpg";
+  penColor?: string;
+  penWidth?: number;
+  width?: number;
+  height?: number;
+  backgroundColor?: string;
+  quality?: number;
+  showClear?: boolean;
 }
 
-export interface FileProps {
-  accept?: string[];     // e.g. ["image/*", "application/pdf"]
+export interface FileProps extends BaseControlProps {
+  accept?: string[]; // e.g. ["image/*", "application/pdf"]
   maxFiles?: number;
   maxSizeMB?: number;
+  multiple?: boolean;
+  capture?: "user" | "environment" | false;
+  maxWidth?: number;
+  maxHeight?: number;
+  maxDurationSeconds?: number;
+  storage?: "local" | "cloud";
+  uploadEndpoint?: string;
+  autoUpload?: boolean;
+  allowedMimeTypes?: string[];
 }
+
+export type SharedControlProps = BaseControlProps;

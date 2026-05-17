@@ -1,15 +1,34 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useLogout, useMe } from "../lib/queries";
+import { useMemo } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useApps, useLogout, useMe } from "../lib/queries";
 
 export function AppHeader() {
   const router = useRouter();
+  const pathname = usePathname();
   const me = useMe();
+  const apps = useApps();
   const logout = useLogout();
 
   const email = me.data?.email ?? "—";
   const role = me.data?.role ?? "";
+
+  const headerContext = useMemo(() => {
+    const parts = pathname.split("/").filter(Boolean);
+    const appsIndex = parts.indexOf("apps");
+    if (appsIndex === -1) return null;
+
+    const appCode = parts[appsIndex + 1];
+    if (!appCode || appCode === "new") return null;
+
+    const appName = apps.data?.find((app) => app.appCode === appCode)?.name ?? appCode;
+
+    const formsIndex = parts.indexOf("forms");
+    const formKey = formsIndex !== -1 ? parts[formsIndex + 1] : null;
+
+    return { appName, appCode, formKey };
+  }, [apps.data, pathname]);
 
   async function onLogout() {
     try {
@@ -22,7 +41,22 @@ export function AppHeader() {
   return (
     <header style={wrap}>
       <div style={left}>
-        <div style={logo}>Transform Admin</div>
+        <div>
+          <div style={logo}>Transform Admin</div>
+          {headerContext ? (
+            <div style={contextLine}>
+              <span><b>{headerContext.appName}</b></span>
+              <span style={divider}>/</span>
+              <span>{headerContext.appCode}</span>
+              {headerContext.formKey ? (
+                <>
+                  <span style={divider}>/</span>
+                  <span>{headerContext.formKey}</span>
+                </>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
       </div>
 
       <div style={right}>
@@ -64,6 +98,21 @@ const left: React.CSSProperties = {
 const logo: React.CSSProperties = {
   fontWeight: 800,
   letterSpacing: 0.2,
+  fontSize: 22,
+};
+
+const contextLine: React.CSSProperties = {
+  marginTop: 6,
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  flexWrap: "wrap",
+  fontSize: 13,
+  color: "#667085",
+};
+
+const divider: React.CSSProperties = {
+  color: "#d0d5dd",
 };
 
 const right: React.CSSProperties = {
@@ -101,11 +150,12 @@ const userRole: React.CSSProperties = {
 };
 
 const logoutBtn: React.CSSProperties = {
-  padding: "8px 12px",
-  borderRadius: 10,
+  padding: "10px 14px",
+  borderRadius: 14,
   border: "1px solid #111",
   background: "#111",
   color: "#fff",
   cursor: "pointer",
   fontWeight: 700,
+  fontSize: 13,
 };

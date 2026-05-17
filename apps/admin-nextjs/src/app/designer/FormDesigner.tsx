@@ -120,26 +120,26 @@ export function FormDesigner({
   }
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "260px 1fr 340px", gap: 12 }}>
+    <div style={workspace}>
+      <div style={statusBar}>
+        <div style={statusPill}>
+          Insert target: <b>{insertionTargetId === schema.root.id ? "root" : "selected layout"}</b>
+        </div>
+        <div style={statusPillMuted}>
+          {dirty ? "Unsaved changes" : "All changes saved"}
+        </div>
+        <button onClick={onSaveDraft} style={primaryBtn} disabled={saveDraft.isPending}>
+          {saveDraft.isPending ? "Saving…" : "Save Draft"}
+        </button>
+        {status ? <span style={{ fontSize: 13, color: "#667085" }}>{status}</span> : null}
+      </div>
+
+      <div style={layout}>
       <div style={stickySidePanel}>
         <Toolbox onAdd={addFromToolbox} />
       </div>
 
-      <div style={{ display: "grid", gap: 12 }}>
-        <div style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ opacity: 0.9, fontSize: 13 }}>
-            Insert target: <b>{insertionTargetId === schema.root.id ? "root" : "selected layout"}</b>
-            {dirty ? <span style={{ marginLeft: 10, opacity: 0.85 }}>• unsaved changes</span> : null}
-          </div>
-
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <button onClick={onSaveDraft} style={primaryBtn} disabled={saveDraft.isPending}>
-              {saveDraft.isPending ? "Saving…" : "Save Draft"}
-            </button>
-            <span style={{ fontSize: 13, opacity: 0.85 }}>{status}</span>
-          </div>
-        </div>
-
+      <div style={{ display: "grid", gap: 12, alignContent: "start" }}>
         <CanvasTree
           root={schema.root as LayoutNode}
           selectedId={selectedId ?? schema.root.id}
@@ -157,24 +157,64 @@ export function FormDesigner({
       <div style={stickySidePanel}>
         <PropertiesPanel node={selectedNode} onChange={patchSelected} />
       </div>
+      </div>
     </div>
   );
 }
-//c
+
+const workspace: React.CSSProperties = {
+  display: "grid",
+  gap: 14,
+  padding: 8,
+  background: "linear-gradient(180deg, #fcfcfd 0%, #f8fafc 100%)",
+  minHeight: "calc(100vh - 180px)",
+};
+
+const statusBar: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "flex-end",
+  gap: 10,
+  flexWrap: "wrap",
+};
+
+const statusPill: React.CSSProperties = {
+  padding: "10px 14px",
+  borderRadius: 999,
+  background: "#fff",
+  border: "1px solid #d0d5dd",
+  fontSize: 13,
+  color: "#344054",
+};
+
+const statusPillMuted: React.CSSProperties = {
+  ...statusPill,
+  background: "#f8fafc",
+  color: "#667085",
+};
+
+const layout: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "280px minmax(0, 1fr) 360px",
+  gap: 16,
+};
+
 const primaryBtn: React.CSSProperties = {
   padding: "10px 14px",
-  borderRadius: 12,
+  borderRadius: 14,
   border: "1px solid #111",
   background: "#111",
   color: "#fff",
-  fontWeight: 800,
+  fontWeight: 700,
+  fontSize: 13,
   cursor: "pointer",
+  boxShadow: "0 8px 20px rgba(17, 17, 17, 0.12)",
 };
 
 const stickySidePanel: React.CSSProperties = {
   position: "sticky",
-  top: 12,
+  top: 16,
   alignSelf: "start",
-  maxHeight: "calc(100vh - 24px)",
+  maxHeight: "calc(100vh - 32px)",
   overflowY: "auto",
 };

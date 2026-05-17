@@ -58,6 +58,7 @@ export default function AppPage() {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "_")
       .replace(/^_+|_+$/g, "");
+
     setIsCreatingFromPdf(true);
     try {
       const formData = new FormData();
@@ -99,224 +100,322 @@ export default function AppPage() {
     }
   }
 
-    return (
-        <main style={{ padding: 24, fontFamily: "system-ui", background: "#fff", color: "#111", minHeight: "100vh" }}>
-      <h1>App: {appCode || "—"}</h1>
+  return (
+    <main style={page}>
+      <section style={hero}>
+        <div>
+          <div style={eyebrow}>Forms Workspace</div>
+          <h1 style={heroTitle}>{appCode || "App"}</h1>
+        </div>
+
+        <div style={toolbar}>
+          {appCode ? (
+            <>
+              <Link
+                href={`/apps/${appCode}/forms/new`}
+                style={iconAction}
+                title="Create draft form"
+                aria-label="Create draft form"
+              >
+                <PlusIcon />
+              </Link>
+              <button
+                type="button"
+                style={iconButton}
+                title={isCreatingFromPdf ? "Creating from PDF..." : "Create from PDF"}
+                aria-label={isCreatingFromPdf ? "Creating from PDF..." : "Create from PDF"}
+                disabled={isCreatingFromPdf}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <PdfIcon />
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/pdf"
+                style={{ display: "none" }}
+                onChange={(event) => {
+                  const file = event.currentTarget.files?.[0];
+                  event.currentTarget.value = "";
+                  if (file) void handlePdfSelected(file);
+                }}
+              />
+            </>
+          ) : null}
+        </div>
+      </section>
 
       {isLoading ? <p>Loading…</p> : null}
       {error ? <p style={{ color: "crimson" }}>{(error as Error).message}</p> : null}
 
-      <p>
-        {appCode ? (
-          <span style={{ display: "inline-flex", gap: 12, alignItems: "center" }}>
-            <Link href={`/apps/${appCode}/forms/new`}>+ Create Draft Form</Link>
-            <button
-              type="button"
-              style={secondaryBtn}
-              disabled={isCreatingFromPdf}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              + Create from PDF
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="application/pdf"
-              style={{ display: "none" }}
-              onChange={(event) => {
-                const file = event.currentTarget.files?.[0];
-                event.currentTarget.value = "";
-                if (file) void handlePdfSelected(file);
-              }}
-            />
-          </span>
-        ) : (
-          <span style={{ opacity: 0.6 }}>+ Create Draft Form</span>
-        )}
-      </p>
+      <section style={section}>
+        <div style={tableHeader}>
+          <div>Form</div>
+          <div style={{ textAlign: "right" }}>Versions</div>
+          <div style={{ textAlign: "right" }}>Actions</div>
+        </div>
 
-      <h2>Forms</h2>
-      <table cellPadding={8} style={{ borderCollapse: "collapse", width: "100%" }}>
-        <thead>
-          <tr style={{ textAlign: "left" }}>
-            <th>formKey</th>
-            <th>Draft</th>
-            <th>Latest Published</th>
-                        <th style={{ textAlign: "right" }}></th>
-          </tr>
-        </thead>
+        <div style={listShell}>
+          <div style={listWrap}>
+          {rows.map((row) => (
+            <article key={row.formKey} style={rowCard}>
+              <div>
+                <div style={formKeyLabel}>
+                  {row.draft?.title ?? row.published?.title ?? "Untitled form"}{" "}
+                  <span style={formKeyInline}>({row.formKey})</span>
+                </div>
+              </div>
 
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.formKey} style={{ borderTop: "1px solid #eee" }}>
-              <td style={{ verticalAlign: "top" }}>
-                <b>{r.formKey}</b>
-              </td>
+              <section style={infoCell}>
+                <div style={cardMeta}>
+                  draft: {row.draft ? `v${row.draft.version}` : "-"}{" "}
+                  <span style={versionSpacer}>|</span>{" "}
+                  published: {row.published ? `v${row.published.version}` : "-"}
+                </div>
+              </section>
 
-              <td style={{ verticalAlign: "top" }}>
-                {r.draft ? (
-                  <>
-                    <div>{r.draft.title}</div>
-                    <div style={{ opacity: 0.7, fontSize: 12 }}>
-                      v{r.draft.version} • {r.draft.status}
-                    </div>
-                                    </>
-                                ) : (
-                                    <span style={{ opacity: 0.7 }}>—</span>
-                                )}
-              </td>
-
-              <td style={{ verticalAlign: "top" }}>
-                {r.published ? (
-                  <>
-                    <div>{r.published.title}</div>
-                    <div style={{ opacity: 0.7, fontSize: 12 }}>
-                      v{r.published.version} • published
-                    </div>
-                  </>
+              <div style={actions}>
+                {row.draft ? (
+                  <Link
+                    href={`/apps/${appCode}/forms/${row.formKey}/edit`}
+                    style={iconAction}
+                    title="Edit draft"
+                    aria-label="Edit draft"
+                  >
+                    <EditIcon />
+                  </Link>
                 ) : (
-                  <span style={{ opacity: 0.7 }}>—</span>
+                  <Link
+                    href={`/apps/${appCode}/forms/new`}
+                    style={iconAction}
+                    title="Create draft"
+                    aria-label="Create draft"
+                  >
+                    <DraftIcon />
+                  </Link>
                 )}
-              </td>
 
-                            <td style={{ verticalAlign: "top", textAlign: "right" }}>
-                                {r.draft ? (
-                                    <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "flex-end" }}>
-                                        <Link href={`/apps/${appCode}/forms/${r.formKey}/edit`} style={actionBtn}>
-                                            <span style={actionContent}>
-                                                <EditIcon />
-                                                Edit Draft
-                                            </span>
-                                        </Link>
-                                        <InlinePublishButton appCode={appCode} formKey={r.formKey} />
-                                        <button
-                                            type="button"
-                                            style={deleteBtn}
-                                            disabled={deleteForm.isPending}
-                                            onClick={() => {
-                                                if (!appCode) return;
-                                                const ok = window.confirm(
-                                                    `Delete form "${r.formKey}"? This removes all versions.`
-                                                );
-                                                if (!ok) return;
-                                                deleteForm.mutate({ formKey: r.formKey });
-                                            }}
-                                        >
-                                            <span style={actionContent}>
-                                                <TrashIcon />
-                                                Delete
-                                            </span>
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "flex-end" }}>
-                                        <Link href={`/apps/${appCode}/forms/new`} style={actionBtn}>
-                                            <span style={actionContent}>
-                                                <DraftIcon />
-                                                Create Draft
-                                            </span>
-                                        </Link>
-                                        <button
-                                            type="button"
-                                            style={deleteBtn}
-                                            disabled={deleteForm.isPending}
-                                            onClick={() => {
-                                                if (!appCode) return;
-                                                const ok = window.confirm(
-                                                    `Delete form "${r.formKey}"? This removes all versions.`
-                                                );
-                                                if (!ok) return;
-                                                deleteForm.mutate({ formKey: r.formKey });
-                                            }}
-                                        >
-                                            <span style={actionContent}>
-                                                <TrashIcon />
-                                                Delete
-                                            </span>
-                                        </button>
-                                    </div>
-                                )}
-                            </td>
-                        </tr>
-                    ))}
-        </tbody>
-      </table>
+                {row.draft ? <InlinePublishButton appCode={appCode} formKey={row.formKey} /> : null}
 
-      <p style={{ marginTop: 16, opacity: 0.8 }}>
-        Showing per formKey: Draft (version 0) + Latest Published (highest version).
-      </p>
+                <button
+                  type="button"
+                  style={dangerIconButton}
+                  title="Delete form"
+                  aria-label="Delete form"
+                  disabled={deleteForm.isPending}
+                  onClick={() => {
+                    if (!appCode) return;
+                    const ok = window.confirm(`Delete form "${row.formKey}"? This removes all versions.`);
+                    if (!ok) return;
+                    deleteForm.mutate({ formKey: row.formKey });
+                  }}
+                >
+                  <TrashIcon />
+                </button>
+              </div>
+            </article>
+          ))}
+          </div>
+        </div>
+
+      </section>
     </main>
   );
 }
 
-const actionBtn: React.CSSProperties = {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "8px 12px",
-    borderRadius: 10,
-    border: "1px solid #111",
-    background: "#fff",
-    color: "#111",
-    fontWeight: 700,
-    textDecoration: "none",
-    width: 130,
+const page: React.CSSProperties = {
+  padding: 24,
+  fontFamily: "system-ui",
+  background: "#fff",
+  color: "#111",
+  minHeight: "100vh",
 };
 
-const deleteBtn: React.CSSProperties = {
-    ...actionBtn,
-    borderColor: "#b42318",
-    color: "#b42318",
+const hero: React.CSSProperties = {
+  display: "flex",
+  alignItems: "flex-start",
+  justifyContent: "space-between",
+  gap: 16,
+  marginBottom: 24,
 };
 
-const secondaryBtn: React.CSSProperties = {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "6px 10px",
-    borderRadius: 8,
-    border: "1px solid #111",
-    background: "#f6f6f6",
-    color: "#111",
-    fontWeight: 600,
+const eyebrow: React.CSSProperties = {
+  fontSize: 12,
+  textTransform: "uppercase",
+  letterSpacing: 1.2,
+  color: "#667085",
+  fontWeight: 700,
+  marginBottom: 8,
 };
 
-const actionContent: React.CSSProperties = {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 8,
+const heroTitle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 34,
+  lineHeight: 1.1,
+};
+
+const toolbar: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+};
+
+const section: React.CSSProperties = {
+  display: "grid",
+  gap: 14,
+};
+
+const tableHeader: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(0, 1fr) auto auto",
+  gap: 14,
+  padding: "0 8px",
+  fontSize: 12,
+  textTransform: "uppercase",
+  letterSpacing: 0.8,
+  color: "#667085",
+  fontWeight: 700,
+};
+
+const listShell: React.CSSProperties = {
+  border: "1px solid #d0d5dd",
+  borderRadius: 18,
+  background: "#fcfcfd",
+  boxShadow: "0 1px 2px rgba(16, 24, 40, 0.04)",
+  overflow: "hidden",
+  padding: "4px 0",
+};
+
+const listWrap: React.CSSProperties = {
+  display: "grid",
+};
+
+const rowCard: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(0, 1fr) auto auto",
+  gap: 14,
+  alignItems: "center",
+  padding: "16px 18px",
+  background: "transparent",
+};
+
+const formKeyLabel: React.CSSProperties = {
+  fontSize: 18,
+  fontWeight: 600,
+  lineHeight: 1.3,
+};
+
+const formKeyInline: React.CSSProperties = {
+  fontSize: 18,
+  fontWeight: 600,
+  color: "#667085",
+};
+
+const actions: React.CSSProperties = {
+  display: "flex",
+  alignItems: "flex-start",
+  gap: 10,
+  flexWrap: "wrap",
+  justifyContent: "flex-end",
+};
+
+const infoCell: React.CSSProperties = {
+  justifySelf: "end",
+  textAlign: "right",
+};
+
+const cardMeta: React.CSSProperties = {
+  fontSize: 18,
+  color: "#475467",
+  fontWeight: 600,
+  whiteSpace: "nowrap",
+};
+
+const iconAction: React.CSSProperties = {
+  width: 42,
+  height: 42,
+  borderRadius: 12,
+  border: "1px solid #d0d5dd",
+  background: "#fff",
+  color: "#111",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  textDecoration: "none",
+  boxShadow: "0 1px 2px rgba(16, 24, 40, 0.04)",
+  flexShrink: 0,
+};
+
+const iconButton: React.CSSProperties = {
+  ...iconAction,
+  cursor: "pointer",
+};
+
+const dangerIconButton: React.CSSProperties = {
+  ...iconButton,
+  color: "#b42318",
+  border: "1px solid #f0c7c2",
 };
 
 const iconBase: React.CSSProperties = {
-    width: 14,
-    height: 14,
-    display: "block",
+  width: 18,
+  height: 18,
+  display: "block",
 };
 
+function PlusIcon() {
+  return (
+    <svg viewBox="0 0 16 16" style={iconBase} aria-hidden>
+      <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+const versionSpacer: React.CSSProperties = {
+  color: "#98a2b3",
+};
+
+function PdfIcon() {
+  return (
+    <svg viewBox="0 0 16 16" style={iconBase} aria-hidden>
+      <path d="M4 2h5l3 3v9H4z" stroke="currentColor" strokeWidth="1.4" fill="none" />
+      <path d="M9 2v3h3" stroke="currentColor" strokeWidth="1.4" fill="none" />
+      <path
+        d="M5.2 11V8.9h1.1c.67 0 1.08.39 1.08 1.03 0 .63-.41 1.07-1.08 1.07H5.2zM8.35 11V8.9h.86c.85 0 1.36.39 1.36 1.05 0 .67-.51 1.05-1.36 1.05h-.86zM12.1 8.9h-1.85V11"
+        stroke="currentColor"
+        strokeWidth="1"
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function EditIcon() {
-    return (
-        <svg viewBox="0 0 16 16" style={iconBase} aria-hidden>
-            <path d="M3 11l7-7 2 2-7 7H3v-2z" stroke="currentColor" strokeWidth="1.4" fill="none" />
-            <path d="M9 3l2 2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-        </svg>
-    );
+  return (
+    <svg viewBox="0 0 16 16" style={iconBase} aria-hidden>
+      <path d="M3 11l7-7 2 2-7 7H3v-2z" stroke="currentColor" strokeWidth="1.4" fill="none" />
+      <path d="M9 3l2 2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
 }
 
 function DraftIcon() {
-    return (
-        <svg viewBox="0 0 16 16" style={iconBase} aria-hidden>
-            <path d="M4 2h5l3 3v9H4z" stroke="currentColor" strokeWidth="1.4" fill="none" />
-            <path d="M9 2v3h3" stroke="currentColor" strokeWidth="1.4" fill="none" />
-        </svg>
-    );
+  return (
+    <svg viewBox="0 0 16 16" style={iconBase} aria-hidden>
+      <path d="M4 2h5l3 3v9H4z" stroke="currentColor" strokeWidth="1.4" fill="none" />
+      <path d="M9 2v3h3" stroke="currentColor" strokeWidth="1.4" fill="none" />
+    </svg>
+  );
 }
 
 function TrashIcon() {
-    return (
-        <svg viewBox="0 0 16 16" style={iconBase} aria-hidden>
-            <path d="M3 4h10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-            <path d="M6 4v-1h4v1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-            <path d="M5 4l.5 8h5l.5-8" stroke="currentColor" strokeWidth="1.4" fill="none" />
-        </svg>
-    );
+  return (
+    <svg viewBox="0 0 16 16" style={iconBase} aria-hidden>
+      <path d="M3 4h10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M6 4v-1h4v1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M5 4l.5 8h5l.5-8" stroke="currentColor" strokeWidth="1.4" fill="none" />
+    </svg>
+  );
 }

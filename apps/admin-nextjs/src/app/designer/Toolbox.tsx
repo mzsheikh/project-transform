@@ -42,7 +42,10 @@ export function Toolbox({ onAdd }: { onAdd: (item: ToolboxItem) => void }) {
 
   return (
     <aside style={panel}>
-      <h3 style={h3}>Toolbox</h3>
+      <div style={headerWrap}>
+        <h3 style={h3}>Toolbox</h3>
+        <div style={headerHint}>Click to insert. Drag to place precisely.</div>
+      </div>
 
       <div style={section}>
         <div style={label}>Layouts</div>
@@ -84,35 +87,48 @@ export function Toolbox({ onAdd }: { onAdd: (item: ToolboxItem) => void }) {
         </div>
       </div>
 
-      <p style={{ fontSize: 12, opacity: 0.85, marginTop: 12 }}>
-        Tip: click to add at selected layout. Drag to drop at a specific position in the canvas.
+      <p style={{ fontSize: 12, color: "#667085", marginTop: 14, lineHeight: 1.6 }}>
+        Tip: select a container first for quick insert, or drag any item into the canvas to place it between existing nodes.
       </p>
     </aside>
   );
 }
 
 const panel: React.CSSProperties = {
-  border: "1px solid #eee",
-  borderRadius: 14,
-  padding: 12,
+  border: "1px solid #d0d5dd",
+  borderRadius: 20,
+  padding: 14,
   background: "#fff",
   color: "#111",
+  boxShadow: "0 10px 30px rgba(16, 24, 40, 0.04)",
+};
+
+const headerWrap: React.CSSProperties = {
+  marginBottom: 8,
 };
 
 const h3: React.CSSProperties = {
   margin: 0,
-  marginBottom: 10,
-  fontSize: 16,
+  fontSize: 18,
+};
+
+const headerHint: React.CSSProperties = {
+  marginTop: 6,
+  fontSize: 13,
+  color: "#667085",
 };
 
 const section: React.CSSProperties = {
-  marginTop: 10,
+  marginTop: 14,
 };
 
 const label: React.CSSProperties = {
   fontSize: 12,
-  opacity: 0.9,
+  color: "#667085",
   marginBottom: 8,
+  textTransform: "uppercase",
+  letterSpacing: 0.8,
+  fontWeight: 700,
 };
 
 const grid: React.CSSProperties = {
@@ -122,13 +138,15 @@ const grid: React.CSSProperties = {
 };
 
 const btn: React.CSSProperties = {
-  padding: "8px 8px",
-  borderRadius: 12,
-  border: "1px solid #111",
+  padding: "10px 8px",
+  borderRadius: 14,
+  border: "1px solid #d0d5dd",
   background: "#fff",
   cursor: "grab",
   fontWeight: 700,
   fontSize: 12,
+  color: "#111827",
+  boxShadow: "0 1px 2px rgba(16, 24, 40, 0.04)",
 };
 
 const btnContent: React.CSSProperties = {

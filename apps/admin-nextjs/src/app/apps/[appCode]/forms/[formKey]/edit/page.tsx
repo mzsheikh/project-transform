@@ -80,11 +80,6 @@ export default function EditFormPage() {
 
   return (
     <main style={mainStyle}>
-      <h1>Form Designer</h1>
-      <p style={{ opacity: 0.9 }}>
-        App: <b>{appCode}</b> | formKey: <b>{formKey}</b>
-      </p>
-
       <FormDesigner
         appCode={appCode}
         formKey={formKey}

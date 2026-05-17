@@ -38,20 +38,25 @@ export function InlinePublishButton({
       <button
         onClick={onPublish}
         disabled={loading}
+        title={loading ? "Publishing..." : "Publish draft"}
+        aria-label={loading ? "Publishing..." : "Publish draft"}
         style={{
-          padding: "8px 12px",
-          borderRadius: 10,
-          border: "1px solid #111",
+          width: 42,
+          height: 42,
+          borderRadius: 12,
+          border: "1px solid #d0d5dd",
           background: "#fff",
           color: "#111",
           cursor: loading ? "not-allowed" : "pointer",
           fontWeight: 700,
-          width: 130,
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          boxShadow: "0 1px 2px rgba(16, 24, 40, 0.04)",
         }}
       >
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+        <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
           <PublishIcon />
-          {loading ? "Publishing..." : "Publish"}
         </span>
       </button>
 
