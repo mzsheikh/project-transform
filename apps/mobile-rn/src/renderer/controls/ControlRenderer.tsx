@@ -8,6 +8,7 @@ import type { SetValue } from "../types";
 import { DateControl } from "./DateControl";
 import { DropdownControl } from "./DropdownControl";
 import { FileControl } from "./FileControl";
+import { ImageControl } from "./ImageControl";
 import { MultiSelectControl } from "./MultiSelectControl";
 import { NumberControl } from "./NumberControl";
 import { SignatureControl } from "./SignatureControl";
@@ -40,6 +41,8 @@ export function ControlRenderer({ node, value, setValue, error }: ControlRendere
       return <DateControl node={node} value={value} setValue={setValue} error={error} />;
     case "signature":
       return <SignatureControl node={node} value={value} setValue={setValue} error={error} />;
+    case "image":
+      return <ImageControl node={node} value={value} setValue={setValue} error={error} />;
     case "file":
       return <FileControl node={node} value={value} setValue={setValue} error={error} />;
     default:

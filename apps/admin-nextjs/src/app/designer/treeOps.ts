@@ -1,4 +1,12 @@
-import type { Node, LayoutNode, ControlNode } from "@transform/contracts/form-types";
+import type {
+  ControlNode,
+  DropdownProps,
+  ImageProps,
+  LayoutNode,
+  MultiSelectProps,
+  Node,
+  TextProps,
+} from "@transform/contracts/form-types";
 import { isLayout, isControl } from "./types";
 
 export function uuidLike(): string {
@@ -48,16 +56,18 @@ export function addChild(parent: LayoutNode, child: Node): LayoutNode {
 }
 
 export function makeLayout(layoutType: "stack" | "row" | "section"): LayoutNode {
-  return {
+  const layout: LayoutNode = {
     type: "layout",
     layoutType,
     id: uuidLike(),
     ...(layoutType === "section" ? { label: "Section" } : {}),
     children: [],
-  } as any;
+  };
+
+  return layout;
 }
 
-export function makeControl(controlType: any): ControlNode {
+export function makeControl(controlType: ControlNode["controlType"]): ControlNode {
   const base: ControlNode = {
     type: "control",
     controlType,
@@ -66,16 +76,32 @@ export function makeControl(controlType: any): ControlNode {
     label: controlType[0].toUpperCase() + controlType.slice(1),
     props: {},
     validation: {},
-  } as any;
+  };
 
   if (controlType === "dropdown" || controlType === "multiselect") {
-    (base.props as any).options = [
-      { label: "Option A", value: "a" },
-      { label: "Option B", value: "b" },
-    ];
+    base.props = {
+      options: [
+        { label: "Option A", value: "a" },
+        { label: "Option B", value: "b" },
+      ],
+    } satisfies DropdownProps | MultiSelectProps;
   }
 
-  if (controlType === "text") (base.props as any).placeholder = "Enter text";
+  if (controlType === "text") {
+    base.props = {
+      placeholder: "Enter text",
+    } satisfies TextProps;
+  }
+
+  if (controlType === "image") {
+    base.props = {
+      placeholder: "No image selected",
+      buttonLabel: "Add Image",
+      allowCamera: true,
+      allowGallery: true,
+      quality: 0.8,
+    } satisfies ImageProps;
+  }
 
   return base;
 }

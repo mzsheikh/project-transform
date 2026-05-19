@@ -78,6 +78,13 @@ export function validateControlValue(node: ControlNode, value: SubmissionDataVal
       return errors;
     }
 
+    case "image": {
+      if (Array.isArray(value)) {
+        errors.push("Attach only one image.");
+      }
+      return errors;
+    }
+
     case "file": {
       const props = node.props as FileProps | undefined;
       const maxItems = node.validation?.maxItems ?? props?.maxFiles;

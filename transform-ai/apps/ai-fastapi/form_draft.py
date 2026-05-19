@@ -29,6 +29,7 @@ DATE_HINT_RE = re.compile(r"\b(date|dob)\b", re.IGNORECASE)
 EMAIL_HINT_RE = re.compile(r"\b(email|e-mail)\b", re.IGNORECASE)
 PHONE_HINT_RE = re.compile(r"\b(phone|mobile|cell)\b", re.IGNORECASE)
 SIGN_HINT_RE = re.compile(r"\b(signature|sign)\b", re.IGNORECASE)
+IMAGE_HINT_RE = re.compile(r"\b(image|photo|picture|selfie|avatar)\b", re.IGNORECASE)
 NUMBER_HINT_RE = re.compile(r"\b(number|qty|quantity|count|age)\b", re.IGNORECASE)
 SECTION_HEADER_RE = re.compile(
     r"^\s*(?:No\.\s*)?(?P<section>.+?)\s+Satisfactory\s+Unsatisfactory\s+Not\s*applicable\s*$",
@@ -83,6 +84,8 @@ def guess_control_type(label: str, tail: str) -> str:
         return "email"
     if PHONE_HINT_RE.search(s):
         return "phone"
+    if IMAGE_HINT_RE.search(s):
+        return "image"
     if YESNO_HINT_RE.search(s):
         return "checkbox"
     if NUMBER_HINT_RE.search(s):
@@ -117,6 +120,10 @@ def fields_from_pdf_meta(metas: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
             pdf_type = pdf_field.get("type")
             control_type = PDF_TYPE_MAP.get(pdf_type, "text")
+            if control_type == "text":
+                inferred_control_type = guess_control_type(label, "")
+                if inferred_control_type in ("text", "number", "date", "image"):
+                    control_type = inferred_control_type
             if control_type in ("signature", "email", "phone"):
                 control_type = "text"
 

@@ -7,7 +7,7 @@ import { Toolbox, type ToolboxItem } from "./Toolbox";
 import { CanvasTree } from "./CanvasTree";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { useDesignerStore } from "./designerStore";
-import { useSaveDraft } from "../../lib/queries";
+import { usePublish, useSaveDraft } from "../../lib/queries";
 
 export function FormDesigner({
   appCode,
@@ -97,6 +97,7 @@ export function FormDesigner({
   }
 
   const saveDraft = useSaveDraft(appCode, formKey);
+  const publish = usePublish(appCode, formKey);
 
   async function onSaveDraft() {
     if (!schema) return;
@@ -115,6 +116,20 @@ export function FormDesigner({
     }
   }
 
+  async function onPublish() {
+    if (!schema) return;
+
+    setStatus("Publishing...");
+    try {
+      const published = await publish.mutateAsync();
+      markSaved();
+      setStatus(`Published v${published.version}`);
+      onSaved?.(schema);
+    } catch (e: any) {
+      setStatus(`Error: ${e.message ?? "publish failed"}`);
+    }
+  }
+
   if (!schema) {
     return <div style={{ padding: 12, opacity: 0.8 }}>Loading designer…</div>;
   }
@@ -130,6 +145,9 @@ export function FormDesigner({
         </div>
         <button onClick={onSaveDraft} style={primaryBtn} disabled={saveDraft.isPending}>
           {saveDraft.isPending ? "Saving…" : "Save Draft"}
+        </button>
+        <button onClick={onPublish} style={secondaryBtn} disabled={publish.isPending}>
+          {publish.isPending ? "Publishing..." : "Publish"}
         </button>
         {status ? <span style={{ fontSize: 13, color: "#667085" }}>{status}</span> : null}
       </div>
@@ -209,6 +227,18 @@ const primaryBtn: React.CSSProperties = {
   fontSize: 13,
   cursor: "pointer",
   boxShadow: "0 8px 20px rgba(17, 17, 17, 0.12)",
+};
+
+const secondaryBtn: React.CSSProperties = {
+  padding: "10px 14px",
+  borderRadius: 14,
+  border: "1px solid #d0d5dd",
+  background: "#fff",
+  color: "#111827",
+  fontWeight: 700,
+  fontSize: 13,
+  cursor: "pointer",
+  boxShadow: "0 1px 2px rgba(16, 24, 40, 0.04)",
 };
 
 const stickySidePanel: React.CSSProperties = {

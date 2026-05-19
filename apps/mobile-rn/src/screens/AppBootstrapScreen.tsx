@@ -16,6 +16,7 @@ export function AppBootstrapScreen() {
   const [appCodeInput, setAppCodeInput] = useState("DEMO01");
   const [stage, setStage] = useState<Stage>({ kind: "enterAppCode" });
   const [error, setError] = useState<string>("");
+  const [refreshingForms, setRefreshingForms] = useState(false);
 
   const title = useMemo(() => {
     switch (stage.kind) {
@@ -61,28 +62,54 @@ export function AppBootstrapScreen() {
     }
   }
 
+  async function refreshForms(appCode: string) {
+    setError("");
+    setRefreshingForms(true);
+
+    try {
+      const boot = await api.bootstrap(appCode);
+      setStage((current) => {
+        if (current.kind === "chooseForm") {
+          return { kind: "chooseForm", appCode: boot.app.appCode, forms: boot.forms };
+        }
+
+        if (current.kind === "loadingForm") {
+          return { ...current, forms: boot.forms };
+        }
+
+        return current;
+      });
+    } catch (e: any) {
+      setError(e.message ?? "Failed to refresh forms");
+    } finally {
+      setRefreshingForms(false);
+    }
+  }
+
   if (stage.kind === "enterAppCode" || stage.kind === "loadingBootstrap") {
     const loading = stage.kind === "loadingBootstrap";
     return (
-      <View style={styles.container}>
-        <Text style={styles.h1}>{title}</Text>
+      <SafeAreaView style={styles.safeScreen}>
+        <View style={styles.container}>
+          <Text style={styles.h1}>{title}</Text>
 
-        <View style={{ gap: 10 }}>
-          <TextInput
-            value={appCodeInput}
-            onChangeText={setAppCodeInput}
-            autoCapitalize="characters"
-            placeholder="e.g. DEMO01"
-            style={styles.input}
-          />
+          <View style={{ gap: 10 }}>
+            <TextInput
+              value={appCodeInput}
+              onChangeText={setAppCodeInput}
+              autoCapitalize="characters"
+              placeholder="e.g. DEMO01"
+              style={styles.input}
+            />
 
-          <Pressable style={styles.primaryBtn} onPress={loadBootstrap} disabled={loading}>
-            {loading ? <ActivityIndicator /> : <Text style={styles.primaryBtnText}>Continue</Text>}
-          </Pressable>
+            <Pressable style={styles.primaryBtn} onPress={loadBootstrap} disabled={loading}>
+              {loading ? <ActivityIndicator /> : <Text style={styles.primaryBtnText}>Continue</Text>}
+            </Pressable>
 
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+            {error ? <Text style={styles.error}>{error}</Text> : null}
+          </View>
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
@@ -92,47 +119,62 @@ export function AppBootstrapScreen() {
     const forms = stage.forms;
 
     return (
-      <View style={styles.container}>
-        <Text style={styles.h1}>{title}</Text>
-
-        <View style={styles.row}>
-          <Pressable
-            style={styles.secondaryBtn}
-            onPress={() => {
-              setError("");
-              setStage({ kind: "enterAppCode" });
-            }}
-          >
-            <Text style={styles.secondaryBtnText}>Change App Code</Text>
-          </Pressable>
-        </View>
-
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
-        <FlatList
-          data={forms}
-          keyExtractor={(item) => item.formKey}
-          contentContainerStyle={{ paddingTop: 12, gap: 10 }}
-          renderItem={({ item }) => (
+      <SafeAreaView style={styles.safeScreen}>
+        <View style={styles.container}>
+          <View style={styles.formsHeader}>
+            <Text style={styles.h1}>{title}</Text>
             <Pressable
-              style={[styles.card, loading ? { opacity: 0.6 } : null]}
-              disabled={loading}
-              onPress={() => openForm(appCode, item.formKey, forms)}
+              style={[styles.iconBtn, refreshingForms ? styles.disabledBtn : null]}
+              onPress={() => void refreshForms(appCode)}
+              disabled={refreshingForms}
+              accessibilityRole="button"
+              accessibilityLabel="Refresh forms"
             >
-              <Text style={styles.cardTitle}>{item.title}</Text>
-              <Text style={styles.cardMeta}>
-                {item.formKey} • v{item.version}
-              </Text>
-              {item.description ? <Text style={styles.cardDesc}>{item.description}</Text> : null}
+              {refreshingForms ? <ActivityIndicator size="small" /> : <Text style={styles.iconBtnText}>Refresh</Text>}
             </Pressable>
-          )}
-          ListEmptyComponent={
-            <Text style={{ opacity: 0.7 }}>
-              No published forms yet. Publish at least one form from the Admin UI.
-            </Text>
-          }
-        />
-      </View>
+          </View>
+
+          <View style={styles.row}>
+            <Pressable
+              style={styles.secondaryBtn}
+              onPress={() => {
+                setError("");
+                setStage({ kind: "enterAppCode" });
+              }}
+            >
+              <Text style={styles.secondaryBtnText}>Change App Code</Text>
+            </Pressable>
+          </View>
+
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+
+          <FlatList
+            data={forms}
+            keyExtractor={(item) => item.formKey}
+            contentContainerStyle={{ paddingTop: 12, gap: 10 }}
+            refreshing={refreshingForms}
+            onRefresh={() => void refreshForms(appCode)}
+            renderItem={({ item }) => (
+              <Pressable
+                style={[styles.card, loading ? { opacity: 0.6 } : null]}
+                disabled={loading}
+                onPress={() => openForm(appCode, item.formKey, forms)}
+              >
+                <Text style={styles.cardTitle}>{item.title}</Text>
+                <Text style={styles.cardMeta}>
+                  {item.formKey} • v{item.version}
+                </Text>
+                {item.description ? <Text style={styles.cardDesc}>{item.description}</Text> : null}
+              </Pressable>
+            )}
+            ListEmptyComponent={
+              <Text style={{ opacity: 0.7 }}>
+                No published forms yet. Publish at least one form from the Admin UI.
+              </Text>
+            }
+          />
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -167,6 +209,7 @@ export function AppBootstrapScreen() {
 
 const styles = StyleSheet.create({
   full: { flex: 1 },
+  safeScreen: { flex: 1, backgroundColor: "#fff" },
   container: { flex: 1, padding: 16, gap: 12 },
   h1: { fontSize: 22, fontWeight: "700" },
 
@@ -179,6 +222,7 @@ const styles = StyleSheet.create({
   },
 
   row: { flexDirection: "row", gap: 10, alignItems: "center" },
+  formsHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
 
   primaryBtn: {
     borderRadius: 12,
@@ -198,6 +242,17 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
   },
   secondaryBtnText: { fontWeight: "700" },
+  iconBtn: {
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#111",
+    backgroundColor: "#fff",
+  },
+  iconBtnText: { fontWeight: "700" },
+  disabledBtn: { opacity: 0.6 },
 
   error: { color: "#b00020" },
 

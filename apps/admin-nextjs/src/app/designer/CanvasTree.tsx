@@ -146,8 +146,10 @@ function TreeNode({
               onDelete(node.id);
             }}
             style={selected ? deleteBtnSelected : deleteBtn}
+            title="Delete control"
+            aria-label="Delete control"
           >
-            Delete
+            <TrashIcon />
           </button>
         ) : null}
       </div>
@@ -228,14 +230,17 @@ const controlCard: React.CSSProperties = {
 };
 
 const deleteBtn: React.CSSProperties = {
-  padding: "6px 10px",
+  width: 32,
+  height: 32,
   borderRadius: 10,
   border: "1px solid #d0d5dd",
   background: "#fff",
   color: "#344054",
   cursor: "pointer",
-  fontWeight: 700,
-  fontSize: 12,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  flexShrink: 0,
 };
 
 const deleteBtnSelected: React.CSSProperties = {
@@ -244,6 +249,23 @@ const deleteBtnSelected: React.CSSProperties = {
   color: "#fff",
   border: "1px solid rgba(255,255,255,0.24)",
 };
+
+const iconBase: React.CSSProperties = {
+  width: 15,
+  height: 15,
+  display: "block",
+};
+
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 16 16" style={iconBase} aria-hidden>
+      <path d="M3 4.5h10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M6.5 2.5h3l.7 2H5.8l.7-2z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" fill="none" />
+      <path d="M5 6l.5 7h5L11 6" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" fill="none" />
+      <path d="M7 7.5v3.5M9 7.5v3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 const dropZone: React.CSSProperties = {
   height: 6,

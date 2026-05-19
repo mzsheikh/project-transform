@@ -53,7 +53,7 @@ export function SignatureControl({ node, value, setValue, error }: SignatureCont
           />
           <View style={styles.signatureFooter}>
             <Pressable style={styles.buttonSecondary} onPress={handleClear}>
-              <Text style={styles.buttonText}>Clear</Text>
+              <Text style={styles.buttonSecondaryText}>Clear</Text>
             </Pressable>
             <Text style={styles.signatureHint}>
               {isFileRef(value) ? "Signature captured" : "Sign above"}

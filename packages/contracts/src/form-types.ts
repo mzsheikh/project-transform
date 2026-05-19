@@ -69,6 +69,7 @@ export type ControlType =
   | "multiselect"
   | "date"
   | "signature"
+  | "image"
   | "file";
 
 export interface ControlNode extends BaseNode {
@@ -87,6 +88,7 @@ export type ControlProps =
   | MultiSelectProps
   | DateProps
   | SignatureProps
+  | ImageProps
   | FileProps;
 
 export interface BaseControlProps {
@@ -233,6 +235,14 @@ export interface SignatureProps extends BaseControlProps {
   backgroundColor?: string;
   quality?: number;
   showClear?: boolean;
+}
+
+export interface ImageProps extends BaseControlProps {
+  buttonLabel?: string;
+  allowCamera?: boolean;
+  allowGallery?: boolean;
+  allowsEditing?: boolean;
+  quality?: number;
 }
 
 export interface FileProps extends BaseControlProps {

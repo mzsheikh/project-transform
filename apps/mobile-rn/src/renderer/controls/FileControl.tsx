@@ -50,7 +50,7 @@ export function FileControl({ node, value, setValue, error }: FileControlProps) 
     <FieldShell label={node.label} error={error}>
       <View>
         <Pressable style={styles.buttonSecondary} onPress={handlePick}>
-          <Text style={styles.buttonText}>Add File</Text>
+          <Text style={styles.buttonSecondaryText}>Add File</Text>
         </Pressable>
         {current.length > 0 ? (
           <Text style={styles.fileHint}>{`Attached: ${current.length}`}</Text>

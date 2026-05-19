@@ -608,6 +608,37 @@ export function PropertiesPanel({
           </>
         ) : null}
 
+        {node.controlType === "image" ? (
+          <>
+            {sectionTitle("Image Control", "Placeholder is used for the disabled filename field")}
+            {textField({
+              label: "Button Label",
+              value: props?.buttonLabel ?? "",
+              onChange: (buttonLabel) => setProps(onChange, node, "buttonLabel", buttonLabel),
+            })}
+            {boolField({
+              label: "Allow Camera",
+              value: props?.allowCamera !== false,
+              onChange: (allowCamera) => setProps(onChange, node, "allowCamera", allowCamera),
+            })}
+            {boolField({
+              label: "Allow Gallery",
+              value: props?.allowGallery !== false,
+              onChange: (allowGallery) => setProps(onChange, node, "allowGallery", allowGallery),
+            })}
+            {boolField({
+              label: "Allow Editing",
+              value: !!props?.allowsEditing,
+              onChange: (allowsEditing) => setProps(onChange, node, "allowsEditing", allowsEditing),
+            })}
+            {numberField({
+              label: "Quality (0-1)",
+              value: props?.quality,
+              onChange: (quality) => setProps(onChange, node, "quality", quality),
+            })}
+          </>
+        ) : null}
+
         {node.controlType === "file" ? (
           <>
             {sectionTitle("File Control")}

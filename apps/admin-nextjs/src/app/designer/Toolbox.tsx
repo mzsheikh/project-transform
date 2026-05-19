@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import type { DragEvent, ReactNode } from "react";
@@ -27,6 +26,7 @@ const CONTROLS: ToolboxEntry[] = [
   { label: "Multi Select", item: { kind: "control", controlType: "multiselect" }, icon: <MultiSelectIcon /> },
   { label: "Date", item: { kind: "control", controlType: "date" }, icon: <DateIcon /> },
   { label: "Signature", item: { kind: "control", controlType: "signature" }, icon: <SignatureIcon /> },
+  { label: "Image", item: { kind: "control", controlType: "image" }, icon: <ImageIcon /> },
   { label: "File", item: { kind: "control", controlType: "file" }, icon: <FileIcon /> },
 ];
 
@@ -252,6 +252,16 @@ function SignatureIcon() {
     <svg viewBox="0 0 16 16" style={iconBase} aria-hidden>
       <path d="M2 11c2-4 3-4 5-1s3 2 7-2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" fill="none" />
       <path d="M2 13h12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ImageIcon() {
+  return (
+    <svg viewBox="0 0 16 16" style={iconBase} aria-hidden>
+      <rect x="2.5" y="3" width="11" height="10" rx="2" stroke="currentColor" strokeWidth="1.4" fill="none" />
+      <circle cx="6" cy="6.5" r="1.2" fill="currentColor" />
+      <path d="M4 11l2.5-2.5 2 1.5L10.5 8l1.5 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
     </svg>
   );
 }
