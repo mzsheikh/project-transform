@@ -1,10 +1,8 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { FormDesigner } from "../../../../../../app/designer/FormDesigner";
-import { useDraftForm, useSaveDraft } from "../../../../../../lib/queries";
+import { useDraftForm } from "../../../../../../lib/queries";
 
 export default function EditFormPage() {
   const params = useParams<{ appCode?: string; formKey?: string }>();
@@ -15,20 +13,8 @@ export default function EditFormPage() {
   const appCode = Array.isArray(appCodeParam) ? appCodeParam[0] : appCodeParam ?? "";
   const formKey = Array.isArray(formKeyParam) ? formKeyParam[0] : formKeyParam ?? "";
 
-  const [status, setStatus] = useState<string>("");
-
   // Load draft via React Query (internally uses listForms cache)
   const draftQ = useDraftForm(appCode, formKey);
-
-  // Save draft mutation
-  const saveM = useSaveDraft(appCode, formKey);
-
-  // Clear status message after a bit (like before)
-  useEffect(() => {
-    if (!status) return;
-    const t = setTimeout(() => setStatus(""), 2500);
-    return () => clearTimeout(t);
-  }, [status]);
 
   const mainStyle: React.CSSProperties = {
     padding: 24,
@@ -84,23 +70,7 @@ export default function EditFormPage() {
         appCode={appCode}
         formKey={formKey}
         initialSchema={form.schemaJson}
-        // IMPORTANT: now saving is powered by React Query mutation
-        onSaved={async (schema) => {
-          setStatus("");
-          try {
-            await saveM.mutateAsync({ schemaJson: schema });
-            setStatus("Saved ✅");
-            // no need to setForm manually; invalidation keeps cache fresh
-          } catch (e: any) {
-            setStatus(`Error: ${e.message ?? "save failed"}`);
-          }
-        }}
       />
-
-      {/* Optional: show mutation state */}
-      {saveM.isPending ? <p style={{ marginTop: 12, opacity: 0.9 }}>Saving…</p> : null}
-
-      {status ? <p style={{ marginTop: 12 }}>{status}</p> : null}
     </main>
   );
 }

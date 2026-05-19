@@ -30,7 +30,15 @@ const CONTROLS: ToolboxEntry[] = [
   { label: "File", item: { kind: "control", controlType: "file" }, icon: <FileIcon /> },
 ];
 
-export function Toolbox({ onAdd }: { onAdd: (item: ToolboxItem) => void }) {
+export function Toolbox({
+  collapsed,
+  onToggleCollapsed,
+  onAdd,
+}: {
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
+  onAdd: (item: ToolboxItem) => void;
+}) {
   function dragStart(item: ToolboxItem) {
     return (event: DragEvent<HTMLButtonElement>) => {
       const payload = JSON.stringify(item);
@@ -41,81 +49,105 @@ export function Toolbox({ onAdd }: { onAdd: (item: ToolboxItem) => void }) {
   }
 
   return (
-    <aside style={panel}>
+    <aside style={{ ...panel, ...(collapsed ? panelCollapsed : null) }}>
       <div style={headerWrap}>
         <h3 style={h3}>Toolbox</h3>
-        <div style={headerHint}>Click to insert. Drag to place precisely.</div>
+        <button type="button" style={collapseBtn} onClick={onToggleCollapsed} aria-label={collapsed ? "Expand toolbox" : "Collapse toolbox"}>
+          {collapsed ? "»" : "«"}
+        </button>
       </div>
 
-      <div style={section}>
-        <div style={label}>Layouts</div>
-        <div style={grid}>
-          {LAYOUTS.map((x) => (
+      {!collapsed ? (
+        <>
+          <div style={section}>
+            <div style={label}>Layouts</div>
+            <div style={grid}>
+              {LAYOUTS.map((x) => (
+                <ToolButton key={x.label} entry={x} dragStart={dragStart} onAdd={onAdd} />
+              ))}
+            </div>
+          </div>
+
+          <div style={section}>
+            <div style={label}>Controls</div>
+            <div style={grid}>
+              {CONTROLS.map((x) => (
+                <ToolButton key={x.label} entry={x} dragStart={dragStart} onAdd={onAdd} />
+              ))}
+            </div>
+          </div>
+
+          <div style={tipCard}>
+            <div style={tipTitle}>Tip</div>
+            <div style={tipText}>Drag a layout or control onto the canvas to add it to your form.</div>
+          </div>
+        </>
+      ) : (
+        <div style={collapsedRail}>
+          {[...LAYOUTS, ...CONTROLS].map((x) => (
             <button
               key={x.label}
-              style={btn}
+              style={railBtn}
               draggable
+              title={x.label}
               onDragStart={dragStart(x.item)}
               onClick={() => onAdd(x.item)}
             >
-              <span style={btnContent}>
-                <span style={iconWrap}>{x.icon}</span>
-                <span style={btnLabel}>{x.label}</span>
-              </span>
+              {x.icon}
             </button>
           ))}
         </div>
-      </div>
-
-      <div style={section}>
-        <div style={label}>Controls</div>
-        <div style={grid}>
-          {CONTROLS.map((x) => (
-            <button
-              key={x.label}
-              style={btn}
-              draggable
-              onDragStart={dragStart(x.item)}
-              onClick={() => onAdd(x.item)}
-            >
-              <span style={btnContent}>
-                <span style={iconWrap}>{x.icon}</span>
-                <span style={btnLabel}>{x.label}</span>
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <p style={{ fontSize: 12, color: "#667085", marginTop: 14, lineHeight: 1.6 }}>
-        Tip: select a container first for quick insert, or drag any item into the canvas to place it between existing nodes.
-      </p>
+      )}
     </aside>
   );
 }
 
+function ToolButton({
+  entry,
+  dragStart,
+  onAdd,
+}: {
+  entry: ToolboxEntry;
+  dragStart: (item: ToolboxItem) => (event: DragEvent<HTMLButtonElement>) => void;
+  onAdd: (item: ToolboxItem) => void;
+}) {
+  return (
+    <button
+      style={btn}
+      draggable
+      onDragStart={dragStart(entry.item)}
+      onClick={() => onAdd(entry.item)}
+    >
+      <span style={btnContent}>
+        <span style={iconWrap}>{entry.icon}</span>
+        <span style={btnLabel}>{entry.label}</span>
+      </span>
+    </button>
+  );
+}
+
 const panel: React.CSSProperties = {
-  border: "1px solid #d0d5dd",
-  borderRadius: 20,
-  padding: 14,
+  border: "1px solid #dfe6f0",
+  borderRadius: 8,
+  padding: 16,
   background: "#fff",
   color: "#111",
-  boxShadow: "0 10px 30px rgba(16, 24, 40, 0.04)",
+  boxShadow: "0 14px 35px rgba(20, 38, 69, 0.04)",
+  transition: "width 160ms ease",
 };
 
 const headerWrap: React.CSSProperties = {
-  marginBottom: 8,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 12,
+  marginBottom: 18,
 };
 
 const h3: React.CSSProperties = {
   margin: 0,
-  fontSize: 18,
-};
-
-const headerHint: React.CSSProperties = {
-  marginTop: 6,
-  fontSize: 13,
-  color: "#667085",
+  fontSize: 20,
+  color: "#2f3a4a",
 };
 
 const section: React.CSSProperties = {
@@ -123,11 +155,9 @@ const section: React.CSSProperties = {
 };
 
 const label: React.CSSProperties = {
-  fontSize: 12,
-  color: "#667085",
-  marginBottom: 8,
-  textTransform: "uppercase",
-  letterSpacing: 0.8,
+  fontSize: 14,
+  color: "#5b6677",
+  marginBottom: 12,
   fontWeight: 700,
 };
 
@@ -138,22 +168,23 @@ const grid: React.CSSProperties = {
 };
 
 const btn: React.CSSProperties = {
-  padding: "10px 8px",
-  borderRadius: 14,
-  border: "1px solid #d0d5dd",
+  minHeight: 58,
+  padding: "12px 14px",
+  borderRadius: 8,
+  border: "1px solid #dfe6f0",
   background: "#fff",
   cursor: "grab",
   fontWeight: 700,
-  fontSize: 12,
-  color: "#111827",
-  boxShadow: "0 1px 2px rgba(16, 24, 40, 0.04)",
+  fontSize: 15,
+  color: "#344054",
+  boxShadow: "0 4px 12px rgba(20, 38, 69, 0.03)",
 };
 
 const btnContent: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  gap: 6,
+  gap: 12,
 };
 
 const btnLabel: React.CSSProperties = {
@@ -161,17 +192,74 @@ const btnLabel: React.CSSProperties = {
 };
 
 const iconWrap: React.CSSProperties = {
-  width: 14,
-  height: 14,
+  width: 22,
+  height: 22,
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
 };
 
 const iconBase: React.CSSProperties = {
-  width: 14,
-  height: 14,
+  width: 22,
+  height: 22,
   display: "block",
+};
+
+const panelCollapsed: React.CSSProperties = {
+  padding: 10,
+};
+
+const collapseBtn: React.CSSProperties = {
+  width: 34,
+  height: 34,
+  borderRadius: 8,
+  border: "1px solid #dfe6f0",
+  background: "#fff",
+  color: "#667085",
+  cursor: "pointer",
+  fontWeight: 900,
+  fontSize: 18,
+};
+
+const tipCard: React.CSSProperties = {
+  marginTop: 26,
+  border: "1px solid #e7edf5",
+  borderRadius: 8,
+  padding: 14,
+  background: "#fff",
+};
+
+const tipTitle: React.CSSProperties = {
+  fontSize: 16,
+  fontWeight: 800,
+  color: "#2454d6",
+  marginBottom: 10,
+};
+
+const tipText: React.CSSProperties = {
+  fontSize: 13,
+  lineHeight: 1.6,
+  color: "#667085",
+  fontWeight: 600,
+};
+
+const collapsedRail: React.CSSProperties = {
+  display: "grid",
+  gap: 10,
+  justifyItems: "center",
+};
+
+const railBtn: React.CSSProperties = {
+  width: 44,
+  height: 44,
+  borderRadius: 8,
+  border: "1px solid #dfe6f0",
+  background: "#fff",
+  color: "#344054",
+  cursor: "grab",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
 };
 
 function StackIcon() {

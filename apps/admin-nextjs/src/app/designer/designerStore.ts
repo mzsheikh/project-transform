@@ -35,6 +35,21 @@ function findNodeDeep(
   return { parent: null, index: -1, node: null };
 }
 
+function findNodeWithParent(
+  parent: LayoutNode,
+  id: string
+): { parent: LayoutNode; index: number; node: Node } | null {
+  for (let i = 0; i < parent.children.length; i++) {
+    const child = parent.children[i];
+    if (child.id === id) return { parent, index: i, node: child };
+    if (child.type === "layout") {
+      const found = findNodeWithParent(child, id);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
 function updateNodeDeep(nodes: Node[], id: string, updater: (node: Node) => Node): Node[] {
   return nodes.map((n) => {
     if (n.id === id) return updater(n);
@@ -102,6 +117,44 @@ function nextControlKey(root: LayoutNode, controlType: ControlNode["controlType"
   return `${controlType}${max + 1}`;
 }
 
+function collectControlKeys(nodes: Node[], keys = new Set<string>()) {
+  for (const node of nodes) {
+    if (node.type === "control") {
+      keys.add(node.key);
+    } else {
+      collectControlKeys(node.children, keys);
+    }
+  }
+  return keys;
+}
+
+function nextAvailableControlKey(usedKeys: Set<string>, controlType: ControlNode["controlType"]) {
+  let i = 1;
+  let key = `${controlType}${i}`;
+  while (usedKeys.has(key)) {
+    i += 1;
+    key = `${controlType}${i}`;
+  }
+  usedKeys.add(key);
+  return key;
+}
+
+function cloneNodeForDuplicate(node: Node, usedKeys: Set<string>): Node {
+  if (node.type === "control") {
+    return {
+      ...deepClone(node),
+      id: uid("ctrl"),
+      key: nextAvailableControlKey(usedKeys, node.controlType),
+    };
+  }
+
+  return {
+    ...deepClone(node),
+    id: uid("layout"),
+    children: node.children.map((child) => cloneNodeForDuplicate(child, usedKeys)),
+  };
+}
+
 export type DesignerState = {
   schema: FormDefinition | null;
   selectedId: string | null;
@@ -120,6 +173,7 @@ export type DesignerState = {
 
   updateNode: (id: string, patch: Partial<LayoutNode> | Partial<ControlNode>) => void;
   removeNode: (id: string) => void;
+  duplicateNode: (id: string) => void;
   addLayout: (
     parentLayoutId: string,
     layoutType: LayoutNode["layoutType"],
@@ -223,6 +277,43 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
       history: pushHistory(cur, state.history),
       dirty: true,
       selectedId: state.selectedId === id ? null : state.selectedId,
+    }));
+  },
+
+  duplicateNode: (id) => {
+    const cur = get().schema;
+    if (!cur || id === cur.root.id) return;
+
+    const found = findNodeWithParent(cur.root, id);
+    if (!found) return;
+
+    const usedKeys = collectControlKeys(cur.root.children);
+    const duplicate = cloneNodeForDuplicate(found.node, usedKeys);
+    const nextRoot =
+      found.parent.id === cur.root.id
+        ? {
+            ...cur.root,
+            children: (() => {
+              const children = [...cur.root.children];
+              children.splice(found.index + 1, 0, duplicate);
+              return children;
+            })(),
+          }
+        : {
+            ...cur.root,
+            children: updateNodeDeep(cur.root.children, found.parent.id, (node) => {
+              if (node.type !== "layout") return node;
+              const children = [...node.children];
+              children.splice(found.index + 1, 0, duplicate);
+              return { ...node, children };
+            }),
+          };
+
+    set((state) => ({
+      schema: { ...cur, root: nextRoot },
+      history: pushHistory(cur, state.history),
+      dirty: true,
+      selectedId: duplicate.id,
     }));
   },
 
