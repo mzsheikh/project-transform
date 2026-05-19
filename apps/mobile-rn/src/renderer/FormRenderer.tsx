@@ -86,7 +86,7 @@ export function FormRenderer({
       </ScrollView>
 
       <View style={styles.footer}>
-        <Pressable style={styles.buttonSecondary} onPress={handleSaveDraft}>
+        <Pressable style={styles.buttonPrimary} onPress={handleSaveDraft}>
           <Text style={styles.buttonText}>Save Draft</Text>
         </Pressable>
 
