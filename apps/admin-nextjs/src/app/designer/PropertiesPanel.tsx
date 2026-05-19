@@ -65,11 +65,23 @@ export function PropertiesPanel({
   }
 
   if (isLayout(node)) {
+    const props = (node.props ?? {}) as Record<string, any>;
     return (
       <aside style={panel}>
         <PanelHeader title="Properties" hint={`Layout: ${node.layoutType}`} onClose={onClose} />
         <div style={formGrid}>
-          <TextField label="Section Label" value={(node as any).label ?? ""} onChange={(label) => onChange({ label })} />
+          <TextField label="Label" value={(node as any).label ?? ""} onChange={(label) => onChange({ label })} />
+          {node.layoutType === "repeater" ? (
+            <>
+              <TextField label="Key" value={(node as any).key ?? ""} onChange={(key) => onChange({ key })} />
+              <SectionTitle title="Repeat Section" />
+              <NumberField label="Min Items" value={props.minItems} onChange={(minItems) => setProps(onChange, node, "minItems", minItems)} />
+              <NumberField label="Max Items" value={props.maxItems} onChange={(maxItems) => setProps(onChange, node, "maxItems", maxItems)} />
+              <NumberField label="Default Items" value={props.defaultItems} onChange={(defaultItems) => setProps(onChange, node, "defaultItems", defaultItems)} />
+              <TextField label="Add Button Label" value={props.addButtonLabel ?? ""} onChange={(addButtonLabel) => setProps(onChange, node, "addButtonLabel", addButtonLabel)} />
+              <TextField label="Remove Button Label" value={props.removeButtonLabel ?? ""} onChange={(removeButtonLabel) => setProps(onChange, node, "removeButtonLabel", removeButtonLabel)} />
+            </>
+          ) : null}
         </div>
       </aside>
     );

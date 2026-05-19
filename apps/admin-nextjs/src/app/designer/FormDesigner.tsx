@@ -254,7 +254,7 @@ function getNodePath(root: LayoutNode, selectedId: string): string[] | null {
 }
 
 function getNodePathFromNode(node: Node, selectedId: string): string[] | null {
-  const label = node.type === "layout" ? node.layoutType : node.key;
+  const label = node.type === "layout" ? (node.layoutType === "repeater" ? node.key ?? "repeater" : node.layoutType) : node.key;
   if (node.id === selectedId) return [label];
   if (node.type === "layout") {
     for (const child of node.children) {
@@ -267,6 +267,22 @@ function getNodePathFromNode(node: Node, selectedId: string): string[] | null {
 
 function PreviewNode({ node }: { node: Node }) {
   if (node.type === "layout") {
+    if (node.layoutType === "repeater") {
+      const props = (node.props ?? {}) as Record<string, any>;
+      return (
+        <div style={previewRepeater}>
+          <div style={previewRepeaterHeader}>
+            <b>{node.label ?? "Repeat Section"}</b>
+            <span>{node.key ?? node.id}</span>
+          </div>
+          <div style={previewStack}>
+            {node.children.length ? node.children.map((child) => <PreviewNode key={child.id} node={child} />) : <div style={previewEmpty}>Empty repeat section</div>}
+          </div>
+          <button type="button" style={previewRepeatButton}>{props.addButtonLabel ?? "Add item"}</button>
+        </div>
+      );
+    }
+
     return (
       <div style={node.layoutType === "row" ? previewRow : previewStack}>
         {node.children.length ? node.children.map((child) => <PreviewNode key={child.id} node={child} />) : <div style={previewEmpty}>Empty layout</div>}
@@ -554,6 +570,9 @@ const previewField: React.CSSProperties = { display: "grid", gap: 7, color: "#34
 const previewLabel: React.CSSProperties = { fontSize: 14 };
 const previewInput: React.CSSProperties = { minHeight: 42, border: "1px solid #d0d5dd", borderRadius: 10, padding: "10px 12px", background: "#fff" };
 const previewEmpty: React.CSSProperties = { border: "1px dashed #d0d5dd", borderRadius: 10, padding: 18, color: "#98a2b3" };
+const previewRepeater: React.CSSProperties = { border: "1px solid #d0d5dd", borderRadius: 12, padding: 14, display: "grid", gap: 12 };
+const previewRepeaterHeader: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 12, color: "#344054" };
+const previewRepeatButton: React.CSSProperties = { border: "1px solid #111", borderRadius: 10, background: "#fff", padding: "10px 12px", fontWeight: 800 };
 
 const iconStyle: React.CSSProperties = { width: 24, height: 24, display: "block" };
 

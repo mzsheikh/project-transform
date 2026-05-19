@@ -135,7 +135,11 @@ function TreeNode({
           <div style={layoutHeader}>
             <div style={nodeTitleWrap}>
               <GripIcon />
-              <span style={nodeTitle}>layout: {node.layoutType}</span>
+              <span style={nodeTitle}>
+                {node.layoutType === "repeater"
+                  ? `layout: repeat section (${node.key ?? node.id})`
+                  : `layout: ${node.layoutType}`}
+              </span>
             </div>
             <div style={nodeActions}>
               <IconButton label="Duplicate layout" onClick={() => onDuplicate(node.id)}>

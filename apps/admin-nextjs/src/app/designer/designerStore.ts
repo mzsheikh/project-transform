@@ -117,6 +117,29 @@ function nextControlKey(root: LayoutNode, controlType: ControlNode["controlType"
   return `${controlType}${max + 1}`;
 }
 
+function nextLayoutKey(root: LayoutNode, layoutType: LayoutNode["layoutType"]) {
+  const re = new RegExp(`^${layoutType}(\\d+)$`);
+  let max = 0;
+
+  const walk = (nodes: Node[]) => {
+    for (const n of nodes) {
+      if (n.type === "layout") {
+        if (n.key) {
+          const m = re.exec(n.key);
+          if (m) {
+            const num = Number(m[1]);
+            if (Number.isFinite(num) && num > max) max = num;
+          }
+        }
+        walk(n.children);
+      }
+    }
+  };
+
+  walk(root.children);
+  return `${layoutType}${max + 1}`;
+}
+
 function collectControlKeys(nodes: Node[], keys = new Set<string>()) {
   for (const node of nodes) {
     if (node.type === "control") {
@@ -326,6 +349,13 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
       type: "layout",
       layoutType,
       label: layoutType,
+      ...(layoutType === "repeater"
+        ? {
+            key: nextLayoutKey(cur.root, layoutType),
+            label: "Repeat Section",
+            props: { minItems: 0, defaultItems: 1 },
+          }
+        : {}),
       children: [],
     };
 

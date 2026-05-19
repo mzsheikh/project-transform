@@ -16,6 +16,8 @@ export interface FileRefLocal {
   remoteUrl?: string;     // present after upload
 }
 
+export type RepeatedItemData = Record<string, SubmissionDataValue>;
+
 export type SubmissionDataValue =
   | string
   | number
@@ -23,7 +25,8 @@ export type SubmissionDataValue =
   | string[]              // multiselect
   | null
   | FileRefLocal
-  | FileRefLocal[];
+  | FileRefLocal[]
+  | RepeatedItemData[];
 
 export interface SubmissionPayload {
   appCode: string;

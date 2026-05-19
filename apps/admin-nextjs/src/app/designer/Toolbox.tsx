@@ -16,6 +16,7 @@ type ToolboxEntry = {
 const LAYOUTS: ToolboxEntry[] = [
   { label: "Stack", item: { kind: "layout", layoutType: "stack" }, icon: <StackIcon /> },
   { label: "Row", item: { kind: "layout", layoutType: "row" }, icon: <RowIcon /> },
+  { label: "Repeat Section", item: { kind: "layout", layoutType: "repeater" }, icon: <RepeatIcon /> },
 ];
 
 const CONTROLS: ToolboxEntry[] = [
@@ -278,6 +279,15 @@ function RowIcon() {
       <rect x="2" y="2" width="3" height="12" rx="1" fill="currentColor" />
       <rect x="6.5" y="2" width="3" height="12" rx="1" fill="currentColor" />
       <rect x="11" y="2" width="3" height="12" rx="1" fill="currentColor" />
+    </svg>
+  );
+}
+
+function RepeatIcon() {
+  return (
+    <svg viewBox="0 0 16 16" style={iconBase} aria-hidden>
+      <path d="M4 3h6a3 3 0 0 1 2.4 4.8M12 3v4H8" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M12 13H6a3 3 0 0 1-2.4-4.8M4 13V9h4" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

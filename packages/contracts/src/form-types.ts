@@ -46,11 +46,12 @@ export type Condition =
 export type Node = LayoutNode | ControlNode;
 
 /** Layouts */
-export type LayoutType = "stack" | "row" | "section";
+export type LayoutType = "stack" | "row" | "section" | "repeater";
 
 export interface LayoutNode extends BaseNode {
   type: "layout";
   layoutType: LayoutType;
+  key?: string; // used by repeatable layouts to bind array data
   props?: LayoutProps;
   children: Node[];
 }
@@ -58,7 +59,16 @@ export interface LayoutNode extends BaseNode {
 export type LayoutProps =
   | { gap?: number } // stack
   | { gap?: number; wrap?: boolean } // row
-  | { collapsible?: boolean; defaultCollapsed?: boolean }; // section
+  | { collapsible?: boolean; defaultCollapsed?: boolean } // section
+  | RepeatSectionProps;
+
+export interface RepeatSectionProps {
+  minItems?: number;
+  maxItems?: number;
+  defaultItems?: number;
+  addButtonLabel?: string;
+  removeButtonLabel?: string;
+}
 
 /** Controls */
 export type ControlType =

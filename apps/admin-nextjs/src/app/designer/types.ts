@@ -7,7 +7,7 @@ export type Selected =
   | { kind: "control"; node: ControlNode };
 
 export type NodeKind = "layout" | "control";
-export type LayoutKind = "stack" | "row" | "section";
+export type LayoutKind = LayoutNode["layoutType"];
 export type ControlKind = "text" | "number" | "switch" | "dropdown" | "multiselect" | "date" | "signature" | "image" | "file";
 
 export type ToolboxItem =

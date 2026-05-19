@@ -55,12 +55,19 @@ export function addChild(parent: LayoutNode, child: Node): LayoutNode {
   return { ...parent, children: [...parent.children, child] };
 }
 
-export function makeLayout(layoutType: "stack" | "row" | "section"): LayoutNode {
+export function makeLayout(layoutType: LayoutNode["layoutType"]): LayoutNode {
   const layout: LayoutNode = {
     type: "layout",
     layoutType,
     id: uuidLike(),
     ...(layoutType === "section" ? { label: "Section" } : {}),
+    ...(layoutType === "repeater"
+      ? {
+          label: "Repeat Section",
+          key: `repeater_${Math.random().toString(16).slice(2, 8)}`,
+          props: { minItems: 0, defaultItems: 1 },
+        }
+      : {}),
     children: [],
   };
 
