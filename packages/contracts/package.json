@@ -15,6 +15,11 @@
       "import": "./src/submission-types.ts",
       "default": "./src/submission-types.ts"
     },
+    "./action-types": {
+      "types": "./src/action-types.ts",
+      "import": "./src/action-types.ts",
+      "default": "./src/action-types.ts"
+    },
     "./form-validators": {
       "types": "./src/form-validators.ts",
       "import": "./src/form-validators.ts",

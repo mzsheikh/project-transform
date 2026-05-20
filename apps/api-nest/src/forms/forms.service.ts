@@ -91,6 +91,30 @@ export class FormsService {
         },
       });
 
+      const draftActions = await tx.formSubmitAction.findMany({
+        where: { appCode, formId: draft.id },
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      });
+      if (draftActions.length > 0) {
+        await tx.formSubmitAction.createMany({
+          data: draftActions.map((action) => ({
+            appCode,
+            formId: published.id,
+            formKey,
+            formVersion: published.version,
+            type: action.type,
+            name: action.name,
+            enabled: action.enabled,
+            sortOrder: action.sortOrder,
+            connectorId: action.connectorId,
+            configJson:
+              action.configJson === null
+                ? Prisma.JsonNull
+                : (action.configJson as Prisma.InputJsonValue),
+          })),
+        });
+      }
+
       return published;
     });
   }

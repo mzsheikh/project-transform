@@ -1,4 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import type {
+  ConnectorDto,
+  ConnectorInput,
+  FormSubmitActionDto,
+  FormSubmitActionInput,
+} from "@transform/contracts/action-types";
+
 const BASE = process.env.NEXT_PUBLIC_API_BASE_URL!;
 
 export type AppDto = {
@@ -76,6 +83,72 @@ export const api = {
 
   deleteForm: (appCode: string, formKey: string) =>
     req<{ deleted: number }>(`/apps/${appCode}/forms/${formKey}`, {
+      method: "DELETE",
+    }),
+
+  listConnectors: (appCode: string) =>
+    req<ConnectorDto[]>(`/apps/${appCode}/connectors`),
+
+  createConnector: (appCode: string, body: ConnectorInput) =>
+    req<ConnectorDto>(`/apps/${appCode}/connectors`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  updateConnector: (appCode: string, connectorId: string, body: Partial<ConnectorInput>) =>
+    req<ConnectorDto>(`/apps/${appCode}/connectors/${connectorId}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+
+  deleteConnector: (appCode: string, connectorId: string) =>
+    req<{ deleted: boolean }>(`/apps/${appCode}/connectors/${connectorId}`, {
+      method: "DELETE",
+    }),
+
+  testConnector: (appCode: string, connectorId: string) =>
+    req<{ ok: boolean; result: Record<string, unknown> }>(
+      `/apps/${appCode}/connectors/${connectorId}/test`,
+      { method: "POST" },
+    ),
+
+  inspectConnectorSchema: (appCode: string, connectorId: string) =>
+    req<{ columns: unknown[] }>(`/apps/${appCode}/connectors/${connectorId}/schema`),
+
+  previewConnectorDdl: (appCode: string, connectorId: string, config: Record<string, unknown>) =>
+    req<{ statements: string[] }>(`/apps/${appCode}/connectors/${connectorId}/ddl/preview`, {
+      method: "POST",
+      body: JSON.stringify({ config }),
+    }),
+
+  applyConnectorDdl: (appCode: string, connectorId: string, config: Record<string, unknown>) =>
+    req<{ applied: boolean; statements: string[] }>(`/apps/${appCode}/connectors/${connectorId}/ddl/apply`, {
+      method: "POST",
+      body: JSON.stringify({ config }),
+    }),
+
+  listSubmitActions: (appCode: string, formKey: string) =>
+    req<FormSubmitActionDto[]>(`/apps/${appCode}/forms/${formKey}/submit-actions`),
+
+  createSubmitAction: (appCode: string, formKey: string, body: FormSubmitActionInput) =>
+    req<FormSubmitActionDto>(`/apps/${appCode}/forms/${formKey}/submit-actions`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  updateSubmitAction: (
+    appCode: string,
+    formKey: string,
+    actionId: string,
+    body: Partial<FormSubmitActionInput>,
+  ) =>
+    req<FormSubmitActionDto>(`/apps/${appCode}/forms/${formKey}/submit-actions/${actionId}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+
+  deleteSubmitAction: (appCode: string, formKey: string, actionId: string) =>
+    req<{ deleted: boolean }>(`/apps/${appCode}/forms/${formKey}/submit-actions/${actionId}`, {
       method: "DELETE",
     }),
 

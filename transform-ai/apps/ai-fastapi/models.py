@@ -3,10 +3,11 @@ from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from pgvector.sqlalchemy import Vector
 
-from db import Base
+from db import AI_DB_SCHEMA, Base
 
 class AiDocument(Base):
     __tablename__ = "ai_documents"
+    __table_args__ = {"schema": AI_DB_SCHEMA}
 
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     app_code = Column(Text, nullable=False)
@@ -21,9 +22,10 @@ class AiDocument(Base):
 
 class AiChunk(Base):
     __tablename__ = "ai_chunks"
+    __table_args__ = {"schema": AI_DB_SCHEMA}
 
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
-    document_id = Column(UUID(as_uuid=True), ForeignKey("ai_documents.id", ondelete="CASCADE"), nullable=False)
+    document_id = Column(UUID(as_uuid=True), ForeignKey(f"{AI_DB_SCHEMA}.ai_documents.id", ondelete="CASCADE"), nullable=False)
     chunk_index = Column(Integer, nullable=False)
     content = Column(Text, nullable=False)
     embedding = Column(Vector(384), nullable=False)

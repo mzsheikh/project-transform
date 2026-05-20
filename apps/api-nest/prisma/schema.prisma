@@ -39,6 +39,30 @@ enum SubmissionStatus {
   failed
 }
 
+enum ConnectorType {
+  database
+  rest_api
+}
+
+enum DatabaseProvider {
+  postgresql
+  mysql
+  sqlserver
+}
+
+enum SubmitActionType {
+  email_pdf
+  database
+  rest_api
+}
+
+enum ActionRunStatus {
+  pending
+  running
+  success
+  failed
+}
+
 model App {
   appCode   String   @id @map("app_code")
   name      String
@@ -49,6 +73,9 @@ model App {
   groups      Group[]
   forms       Form[]
   submissions Submission[]
+  connectors  Connector[]
+  submitActions FormSubmitAction[]
+  actionRuns SubmissionActionRun[]
 
   @@map("apps")
 }
@@ -140,6 +167,8 @@ model Form {
 
   app App @relation(fields: [appCode], references: [appCode], onDelete: Cascade)
 
+  submitActions FormSubmitAction[]
+
   @@unique([appCode, formKey, version])
   @@index([appCode, formKey, status])
   @@map("forms")
@@ -162,6 +191,100 @@ model Submission {
 
   app App @relation(fields: [appCode], references: [appCode], onDelete: Cascade)
 
+  actionRuns SubmissionActionRun[]
+
   @@index([appCode, formKey, createdAt(sort: Desc)])
   @@map("submissions")
+}
+
+model Connector {
+  id          String           @id @default(uuid()) @db.Uuid
+  appCode     String           @map("app_code")
+  name        String
+  type        ConnectorType
+  provider    DatabaseProvider?
+  configJson  Json             @default("{}") @map("config_json")
+  secretsJson Json?            @map("secrets_json")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  app App @relation(fields: [appCode], references: [appCode], onDelete: Cascade)
+
+  submitActions FormSubmitAction[]
+  schemaSnapshots ConnectorSchemaSnapshot[]
+
+  @@unique([appCode, name])
+  @@index([appCode, type])
+  @@map("connectors")
+}
+
+model FormSubmitAction {
+  id         String           @id @default(uuid()) @db.Uuid
+  appCode    String           @map("app_code")
+  formId     String           @map("form_id") @db.Uuid
+  formKey    String           @map("form_key")
+  formVersion Int             @map("form_version")
+  type       SubmitActionType
+  name       String
+  enabled    Boolean          @default(true)
+  sortOrder  Int              @default(0) @map("sort_order")
+  connectorId String?         @map("connector_id") @db.Uuid
+  configJson Json             @default("{}") @map("config_json")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  app       App        @relation(fields: [appCode], references: [appCode], onDelete: Cascade)
+  form      Form       @relation(fields: [formId], references: [id], onDelete: Cascade)
+  connector Connector? @relation(fields: [connectorId], references: [id], onDelete: SetNull)
+
+  actionRuns SubmissionActionRun[]
+
+  @@index([appCode, formKey, formVersion])
+  @@index([formId, enabled, sortOrder])
+  @@map("form_submit_actions")
+}
+
+model SubmissionActionRun {
+  id           String          @id @default(uuid()) @db.Uuid
+  appCode      String          @map("app_code")
+  submissionId String          @map("submission_id") @db.Uuid
+  actionId     String?         @map("action_id") @db.Uuid
+  actionType   SubmitActionType @map("action_type")
+  actionName   String          @map("action_name")
+  sortOrder    Int             @default(0) @map("sort_order")
+  status       ActionRunStatus @default(pending)
+  attemptCount Int             @default(0) @map("attempt_count")
+  maxAttempts  Int             @default(3) @map("max_attempts")
+  nextAttemptAt DateTime?      @map("next_attempt_at")
+  lastAttemptAt DateTime?      @map("last_attempt_at")
+  completedAt  DateTime?       @map("completed_at")
+  actionSnapshot Json          @map("action_snapshot")
+  responseJson Json?           @map("response_json")
+  errorJson    Json?           @map("error_json")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  app        App               @relation(fields: [appCode], references: [appCode], onDelete: Cascade)
+  submission Submission        @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  action     FormSubmitAction? @relation(fields: [actionId], references: [id], onDelete: SetNull)
+
+  @@index([appCode, status, nextAttemptAt])
+  @@index([submissionId, sortOrder])
+  @@map("submission_action_runs")
+}
+
+model ConnectorSchemaSnapshot {
+  id          String   @id @default(uuid()) @db.Uuid
+  appCode     String   @map("app_code")
+  connectorId String   @map("connector_id") @db.Uuid
+  snapshotJson Json    @map("snapshot_json")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  connector Connector @relation(fields: [connectorId], references: [id], onDelete: Cascade)
+
+  @@index([appCode, connectorId, createdAt(sort: Desc)])
+  @@map("connector_schema_snapshots")
 }

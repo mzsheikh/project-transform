@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 from pgvector.sqlalchemy import Vector
+from db import AI_DB_SCHEMA
 
 
 FIELD_LINE_RE = re.compile(
@@ -60,8 +61,8 @@ def vector_search(db: Session, app_code: str, qvec: List[float], top_k: int) -> 
         c.chunk_index as chunk_index,
         c.content as content,
         (1 - (c.embedding <=> :qvec)) as score
-      FROM ai_chunks c
-      JOIN ai_documents d ON d.id = c.document_id
+      FROM "{AI_DB_SCHEMA}".ai_chunks c
+      JOIN "{AI_DB_SCHEMA}".ai_documents d ON d.id = c.document_id
       WHERE d.app_code = :app_code
       ORDER BY c.embedding <=> :qvec
       LIMIT :top_k

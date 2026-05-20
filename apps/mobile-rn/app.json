@@ -1,16 +1,36 @@
 {
   "expo": {
-    "name": "Project Transform",
+    "name": "transform",
     "slug": "project-transform",
     "version": "1.0.0",
     "sdkVersion": "54.0.0",
     "platforms": ["ios", "android", "web"],
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFFFF"
+    },
+    "ios": {
+      "bundleIdentifier": "com.transform.mobile",
+      "icon": "./assets/icon.png"
+    },
+    "android": {
+      "package": "com.transform.mobile",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
+      }
+    },
+    "web": {
+      "favicon": "./assets/icon.png"
+    },
     "plugins": [
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow Project Transform to access your photos so form image fields can attach gallery images.",
-          "cameraPermission": "Allow Project Transform to access your camera so form image fields can capture photos.",
+          "photosPermission": "Allow transform to access your photos so form image fields can attach gallery images.",
+          "cameraPermission": "Allow transform to access your camera so form image fields can capture photos.",
           "microphonePermission": false
         }
       ]

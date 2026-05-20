@@ -112,6 +112,14 @@ export default function AppPage() {
           {appCode ? (
             <>
               <Link
+                href={`/apps/${appCode}/connectors`}
+                style={iconAction}
+                title="Configure connectors"
+                aria-label="Configure connectors"
+              >
+                <DataIcon />
+              </Link>
+              <Link
                 href={`/apps/${appCode}/forms/new`}
                 style={iconAction}
                 title="Create draft form"
@@ -388,6 +396,16 @@ function PdfIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+function DataIcon() {
+  return (
+    <svg viewBox="0 0 16 16" style={iconBase} aria-hidden>
+      <path d="M3 4c0-1.1 2.2-2 5-2s5 .9 5 2-2.2 2-5 2-5-.9-5-2z" stroke="currentColor" strokeWidth="1.3" fill="none" />
+      <path d="M3 4v4c0 1.1 2.2 2 5 2s5-.9 5-2V4" stroke="currentColor" strokeWidth="1.3" fill="none" />
+      <path d="M3 8v4c0 1.1 2.2 2 5 2s5-.9 5-2V8" stroke="currentColor" strokeWidth="1.3" fill="none" />
     </svg>
   );
 }

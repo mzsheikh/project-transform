@@ -15,6 +15,8 @@ import type { FormDefinition } from "@transform/contracts/form-types";
 import { api, type BootstrapFormItem } from "../api/client";
 import { FormRenderer } from "../renderer/FormRenderer";
 import type { FormState } from "../renderer/types";
+import type { SubmissionPayload } from "@transform/contracts/submission-types";
+import { cryptoLikeId } from "../renderer/renderer-utils";
 import { deleteDraft, listDrafts, saveDraft, type SavedDraft } from "../storage/drafts";
 
 type Tab = "forms" | "drafts" | "settings";
@@ -42,6 +44,7 @@ export function AppBootstrapScreen() {
   const [refreshingForms, setRefreshingForms] = useState(false);
   const [refreshingDrafts, setRefreshingDrafts] = useState(false);
   const [currentDraftId, setCurrentDraftId] = useState<string | undefined>(undefined);
+  const [submitting, setSubmitting] = useState(false);
 
   const title = useMemo(() => {
     switch (stage.kind) {
@@ -338,10 +341,45 @@ export function AppBootstrapScreen() {
           setStage((current) => (current.kind === "renderForm" ? { ...current, drafts, draftId: draft.id } : current));
           Alert.alert("Draft saved", "Your form draft has been saved on this device.");
         }}
-        onSubmit={(data) => {
-          console.log("submit:", { appCode: stage.appCode, formKey: stage.formKey, data });
+        onSubmit={async (data) => {
+          const now = new Date().toISOString();
+          const payload: SubmissionPayload = {
+            appCode: stage.appCode,
+            formKey: stage.formKey,
+            formVersion: stage.form.version,
+            submissionId: cryptoLikeId(),
+            status: "pending_sync",
+            createdAt: now,
+            updatedAt: now,
+            data,
+          };
+
+          setSubmitting(true);
+          try {
+            const accepted = await api.submitForm(payload);
+            if (currentDraftId ?? stage.draftId) {
+              await deleteDraft(stage.appCode, currentDraftId ?? stage.draftId!);
+              const drafts = await listDrafts(stage.appCode);
+              setStage((current) => (current.kind === "renderForm" ? { ...current, drafts, draftId: undefined } : current));
+              setCurrentDraftId(undefined);
+            }
+            Alert.alert(
+              "Submitted",
+              `Submission ${accepted.submissionId} accepted. ${accepted.actionRuns.length} action${accepted.actionRuns.length === 1 ? "" : "s"} queued.`,
+            );
+          } catch (e: any) {
+            Alert.alert("Submit failed", e.message ?? "Unable to submit form.");
+          } finally {
+            setSubmitting(false);
+          }
         }}
       />
+      {submitting ? (
+        <View style={styles.submitOverlay}>
+          <ActivityIndicator />
+          <Text style={styles.submitOverlayText}>Submitting...</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -432,4 +470,19 @@ const styles = StyleSheet.create({
   safeTop: { backgroundColor: "#fff" },
   topBar: { padding: 12, borderBottomWidth: 1, borderColor: "#eee", flexDirection: "row", gap: 10, alignItems: "center" },
   topBarTitle: { fontWeight: "700", marginLeft: "auto" },
+  submitOverlay: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    padding: 14,
+    borderTopWidth: 1,
+    borderColor: "#eee",
+    backgroundColor: "#fff",
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 10,
+  },
+  submitOverlayText: { fontWeight: "700" },
 });

@@ -6,6 +6,7 @@ import type { ControlNode, FormDefinition, LayoutNode, Node } from "@transform/c
 import { Toolbox, type ToolboxItem } from "./Toolbox";
 import { CanvasTree } from "./CanvasTree";
 import { PropertiesPanel } from "./PropertiesPanel";
+import { SubmitActionsPanel } from "./SubmitActionsPanel";
 import { useDesignerStore } from "./designerStore";
 import { usePublish, useSaveDraft } from "../../lib/queries";
 
@@ -23,6 +24,7 @@ export function FormDesigner({
   const [status, setStatus] = useState<string>("");
   const [toolboxCollapsed, setToolboxCollapsed] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [submitActionsOpen, setSubmitActionsOpen] = useState(false);
   const [saveMenuOpen, setSaveMenuOpen] = useState(false);
   const [zoom, setZoom] = useState(1);
 
@@ -147,6 +149,7 @@ export function FormDesigner({
 
         <div style={toolbar}>
           <ToolbarButton label="Preview" icon={<EyeIcon />} active onClick={() => setPreviewOpen(true)} />
+          <ToolbarButton label="Actions" icon={<ActionIcon />} onClick={() => setSubmitActionsOpen(true)} />
           <ToolbarButton label="Undo" icon={<UndoIcon />} disabled={!canUndo} onClick={() => { undo(); setStatus(""); }} />
           <ToolbarButton label="Redo" icon={<RedoIcon />} disabled={!canRedo} onClick={() => { redo(); setStatus(""); }} />
           <div style={splitWrap}>
@@ -239,6 +242,10 @@ export function FormDesigner({
             </div>
           </div>
         </div>
+      ) : null}
+
+      {submitActionsOpen ? (
+        <SubmitActionsPanel appCode={appCode} formKey={formKey} onClose={() => setSubmitActionsOpen(false)} />
       ) : null}
     </div>
   );
@@ -586,6 +593,10 @@ function UndoIcon() {
 
 function RedoIcon() {
   return <svg viewBox="0 0 24 24" style={iconStyle} aria-hidden><path d="M15 7h5v5" stroke="currentColor" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round" /><path d="M19 12a8 8 0 1 1-2.4-5.7L20 9" stroke="currentColor" strokeWidth="2.2" fill="none" strokeLinecap="round" /></svg>;
+}
+
+function ActionIcon() {
+  return <svg viewBox="0 0 24 24" style={iconStyle} aria-hidden><path d="M5 7h5M14 7h5M5 17h5M14 17h5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /><path d="M10 7c2 0 2 10 4 10" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" /><path d="M14 7c-2 0-2 10-4 10" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" /></svg>;
 }
 
 function ChevronDownIcon() {

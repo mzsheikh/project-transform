@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text, bindparam
 from pgvector.sqlalchemy import Vector
 
-from db import get_db
+from db import AI_DB_SCHEMA, get_db
 from models import AiDocument, AiChunk
 from schemas import (
     IngestPdfRequest,
@@ -154,8 +154,8 @@ def search(req: SearchRequest, db: Session = Depends(get_db)):
         c.content as content,
         (1 - (c.embedding <=> :qvec)) as score,
         c.meta as meta
-      FROM ai_chunks c
-      JOIN ai_documents d ON d.id = c.document_id
+      FROM "{AI_DB_SCHEMA}".ai_chunks c
+      JOIN "{AI_DB_SCHEMA}".ai_documents d ON d.id = c.document_id
       WHERE d.app_code = :app_code
       ORDER BY c.embedding <=> :qvec
       LIMIT :top_k

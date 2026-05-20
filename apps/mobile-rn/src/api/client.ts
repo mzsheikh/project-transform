@@ -1,5 +1,7 @@
 import { API_BASE_URL } from "../config";
 import type { FormDefinition } from "@transform/contracts/form-types";
+import type { SubmissionAcceptedResponse } from "@transform/contracts/action-types";
+import type { SubmissionPayload } from "@transform/contracts/submission-types";
 
 export type BootstrapFormItem = {
   formKey: string;
@@ -42,4 +44,19 @@ export const api = {
     );
     return row.schemaJson;
   },
+
+  submitForm: (payload: SubmissionPayload) =>
+    req<SubmissionAcceptedResponse>(
+      `/apps/${encodeURIComponent(payload.appCode)}/forms/${encodeURIComponent(payload.formKey)}/submissions`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          submissionId: payload.submissionId,
+          formVersion: payload.formVersion,
+          data: payload.data,
+          createdAt: payload.createdAt,
+          updatedAt: payload.updatedAt,
+        }),
+      },
+    ),
 };
