@@ -6,7 +6,7 @@ import type { ControlNode } from "@transform/contracts/form-types";
 import type { FileRefLocal, SubmissionDataValue } from "@transform/contracts/submission-types";
 
 import type { SetValue } from "../types";
-import { cryptoLikeId, isFileRef } from "../renderer-utils";
+import { cryptoLikeId, getBoolProp, isFileRef } from "../renderer-utils";
 import { styles } from "../renderer-styles";
 import { FieldShell } from "./FieldShell";
 
@@ -23,6 +23,7 @@ export function SignatureControl({ node, value, setValue, error }: SignatureCont
   const [pendingClear, setPendingClear] = useState(false);
   const current = isFileRef(value) ? value : null;
   const signatureUri = current?.localUri ?? current?.remoteUrl;
+  const disabled = getBoolProp(node.props, "disabled") === true || getBoolProp(node.props, "readOnly") === true;
 
   function handleOK(signature: string) {
     const file: FileRefLocal = {
@@ -38,10 +39,12 @@ export function SignatureControl({ node, value, setValue, error }: SignatureCont
   }
 
   function handleClear() {
+    if (disabled) return;
     setValue(node.key, null);
   }
 
   function handleOpenDialog() {
+    if (disabled) return;
     setPendingClear(false);
     setModalVisible(true);
   }
@@ -75,7 +78,7 @@ export function SignatureControl({ node, value, setValue, error }: SignatureCont
         </View>
       ) : (
         <View style={styles.signatureField}>
-          <Pressable style={styles.buttonSecondary} onPress={handleOpenDialog}>
+          <Pressable style={[styles.buttonSecondary, disabled ? styles.buttonDisabled : null]} disabled={disabled} onPress={handleOpenDialog}>
             <Text style={styles.buttonSecondaryText}>{signatureUri ? "Edit Signature" : "Add Signature"}</Text>
           </Pressable>
 
@@ -95,7 +98,7 @@ export function SignatureControl({ node, value, setValue, error }: SignatureCont
           )}
 
           {signatureUri ? (
-            <Pressable style={styles.signatureClearBtn} onPress={handleClear}>
+            <Pressable style={[styles.signatureClearBtn, disabled ? styles.buttonDisabled : null]} disabled={disabled} onPress={handleClear}>
               <Text style={styles.buttonSecondaryText}>Clear</Text>
             </Pressable>
           ) : null}

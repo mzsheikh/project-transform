@@ -3,6 +3,8 @@ import { PrismaService } from "../prisma/prisma.service";
 import { CreateDraftFormDto } from "./dto/create-draft-form.dto";
 import { UpdateDraftFormDto } from "./dto/update-draft-form.dto";
 import { Prisma } from "@prisma/client";
+import { validateFormExpressions } from "../../../../packages/contracts/src/expressions";
+import type { FormDefinition } from "../../../../packages/contracts/src/form-types";
 
 @Injectable()
 export class FormsService {
@@ -58,6 +60,14 @@ export class FormsService {
       orderBy: { createdAt: "desc" },
     });
     if (!draft) throw new NotFoundException("Draft form not found");
+
+    const expressionIssues = validateFormExpressions(draft.schemaJson as unknown as FormDefinition);
+    if (expressionIssues.length > 0) {
+      throw new BadRequestException({
+        message: "Form expression validation failed",
+        errors: expressionIssues,
+      });
+    }
 
     // Find current max published version
     const max = await this.prisma.form.aggregate({

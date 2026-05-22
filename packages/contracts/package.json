@@ -25,6 +25,11 @@
       "import": "./src/form-validators.ts",
       "default": "./src/form-validators.ts"
     },
+    "./expressions": {
+      "types": "./src/expressions.ts",
+      "import": "./src/expressions.ts",
+      "default": "./src/expressions.ts"
+    },
     ".": {
       "types": "./src/form-types.ts",
       "import": "./src/form-types.ts",

@@ -6,7 +6,7 @@ import type { ControlNode, ImageProps } from "@transform/contracts/form-types";
 import type { FileRefLocal, SubmissionDataValue } from "@transform/contracts/submission-types";
 
 import type { SetValue } from "../types";
-import { cryptoLikeId, isFileRef } from "../renderer-utils";
+import { cryptoLikeId, getBoolProp, isFileRef } from "../renderer-utils";
 import { styles } from "../renderer-styles";
 import { FieldShell } from "./FieldShell";
 
@@ -23,14 +23,16 @@ export function ImageControl({ node, value, setValue, error }: ImageControlProps
   const props = (node.props ?? {}) as ImageProps;
   const [menuVisible, setMenuVisible] = useState(false);
   const current = isFileRef(value) ? value : null;
-  const buttonLabel = props.buttonLabel?.trim() || "Add Image";
-  const placeholder = props.placeholder?.trim() || "No image selected";
+  const buttonLabel = typeof props.buttonLabel === "string" && props.buttonLabel.trim() ? props.buttonLabel.trim() : "Add Image";
+  const placeholder = typeof props.placeholder === "string" && props.placeholder.trim() ? props.placeholder.trim() : "No image selected";
   const allowCamera = props.allowCamera !== false;
   const allowGallery = props.allowGallery !== false;
-  const hasSources = allowCamera || allowGallery;
+  const disabled = getBoolProp(node.props, "disabled") === true || getBoolProp(node.props, "readOnly") === true;
+  const hasSources = (allowCamera || allowGallery) && !disabled;
   const previewUri = current?.localUri ?? current?.remoteUrl;
 
   async function handleSourcePick(source: ImageSource) {
+    if (disabled) return;
     setMenuVisible(false);
 
     const permission =
@@ -50,7 +52,7 @@ export function ImageControl({ node, value, setValue, error }: ImageControlProps
 
     const pickerOptions = {
       mediaTypes: ["images"] as ["images"],
-      allowsEditing: props.allowsEditing ?? false,
+      allowsEditing: typeof props.allowsEditing === "boolean" ? props.allowsEditing : false,
       quality: typeof props.quality === "number" ? props.quality : 0.8,
     };
 

@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from "@nestjs/comm
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateSubmissionDto } from "./dto/create-submission.dto";
-import { validateSubmissionData } from "./runtime/form-data-validator";
+import { validateAndNormalizeSubmissionData } from "./runtime/form-data-validator";
 import { SubmissionActionRunnerService } from "./submission-action-runner.service";
 
 @Injectable()
@@ -36,7 +36,8 @@ export class SubmissionsService {
     });
     if (!form) throw new NotFoundException("Published form version not found");
 
-    const errors = validateSubmissionData(form.schemaJson, dto.data);
+    const validation = validateAndNormalizeSubmissionData(form.schemaJson, dto.data);
+    const errors = validation.errors;
     if (errors.length > 0) {
       throw new BadRequestException({ message: "Submission validation failed", errors });
     }
@@ -46,7 +47,7 @@ export class SubmissionsService {
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     });
 
-    const created = await this.createSubmissionWithRuns(appCode, formKey, dto, actions);
+    const created = await this.createSubmissionWithRuns(appCode, formKey, { ...dto, data: validation.data }, actions);
 
     if (created.actionRuns.length > 0) {
       this.runner.enqueueSubmission(created.id);

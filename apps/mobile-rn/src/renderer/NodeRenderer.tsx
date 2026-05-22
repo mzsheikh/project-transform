@@ -3,6 +3,7 @@ import { Pressable, Text, View } from "react-native";
 
 import type { LayoutNode, Node } from "@transform/contracts/form-types";
 import type { SubmissionDataValue } from "@transform/contracts/submission-types";
+import { resolveControlState } from "@transform/contracts/expressions";
 
 import type { FormState, SetValue } from "./types";
 
@@ -13,33 +14,40 @@ import { styles } from "./renderer-styles";
 export type NodeRendererProps = {
   node: Node;
   data: FormState;
+  rootData?: FormState;
   setValue: SetValue;
   errors: Record<string, string>;
   errorPrefix?: string;
+  rowIndex?: number;
 };
 
-export function NodeRenderer({ node, data, setValue, errors, errorPrefix = "" }: NodeRendererProps) {
+export function NodeRenderer({ node, data, rootData = data, setValue, errors, errorPrefix = "", rowIndex }: NodeRendererProps) {
   if (node.type === "layout") {
     if (node.layoutType === "repeater") {
-      return <RepeatSectionRenderer node={node} data={data} setValue={setValue} errors={errors} errorPrefix={errorPrefix} />;
+      return <RepeatSectionRenderer node={node} data={data} rootData={rootData} setValue={setValue} errors={errors} errorPrefix={errorPrefix} />;
     }
 
     return (
       <LayoutRenderer
         node={node}
         renderNode={(child) => (
-          <NodeRenderer node={child} data={data} setValue={setValue} errors={errors} errorPrefix={errorPrefix} />
+          <NodeRenderer node={child} data={data} rootData={rootData} setValue={setValue} errors={errors} errorPrefix={errorPrefix} rowIndex={rowIndex} />
         )}
       />
     );
   }
 
+  const state = resolveControlState(node, { rootData, itemData: data, rowIndex });
+  if (!state.visible) return null;
+  const effectiveNode = { ...node, props: state.props };
+  const errorKey = errorPrefix ? `${errorPrefix}.${node.key}` : node.key;
+
   return (
     <ControlRenderer
-      node={node}
+      node={effectiveNode}
       value={data[node.key]}
       setValue={setValue}
-      error={errors[errorPrefix ? `${errorPrefix}.${node.key}` : node.key]}
+      error={errors[errorKey] ?? state.errors[0]?.message}
     />
   );
 }
@@ -47,12 +55,14 @@ export function NodeRenderer({ node, data, setValue, errors, errorPrefix = "" }:
 function RepeatSectionRenderer({
   node,
   data,
+  rootData,
   setValue,
   errors,
   errorPrefix,
 }: {
   node: LayoutNode;
   data: FormState;
+  rootData: FormState;
   setValue: SetValue;
   errors: Record<string, string>;
   errorPrefix: string;
@@ -125,7 +135,15 @@ function RepeatSectionRenderer({
             <LayoutRenderer
               node={{ ...node, layoutType: "stack", children: node.children }}
               renderNode={(child) => (
-                <NodeRenderer node={child} data={item} setValue={itemSetValue} errors={errors} errorPrefix={itemPrefix} />
+                <NodeRenderer
+                  node={child}
+                  data={item}
+                  rootData={rootData}
+                  setValue={itemSetValue}
+                  errors={errors}
+                  errorPrefix={itemPrefix}
+                  rowIndex={index}
+                />
               )}
             />
           </View>

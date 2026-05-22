@@ -5,7 +5,7 @@ import type { ControlNode, OptionItem } from "@transform/contracts/form-types";
 import type { SubmissionDataValue } from "@transform/contracts/submission-types";
 
 import type { SetValue } from "../types";
-import { getOptions } from "../renderer-utils";
+import { getBoolProp, getOptions } from "../renderer-utils";
 import { styles } from "../renderer-styles";
 import { FieldShell } from "./FieldShell";
 
@@ -17,12 +17,14 @@ export type MultiSelectControlProps = {
 };
 
 export function MultiSelectControl({ node, value, setValue, error }: MultiSelectControlProps) {
+  const disabled = getBoolProp(node.props, "disabled") === true || getBoolProp(node.props, "readOnly") === true;
   return (
     <FieldShell label={node.label} error={error}>
       <MultiSelectStarter
         options={getOptions(node.props)}
         value={Array.isArray(value) ? (value as string[]) : []}
         onChange={(arr) => setValue(node.key, arr)}
+        disabled={disabled}
       />
     </FieldShell>
   );
@@ -33,10 +35,12 @@ function MultiSelectStarter({
   options,
   value,
   onChange,
+  disabled,
 }: {
   options: OptionItem[];
   value: string[];
   onChange: (arr: string[]) => void;
+  disabled: boolean;
 }) {
   return (
     <View style={styles.chipWrap}>
@@ -45,7 +49,8 @@ function MultiSelectStarter({
         return (
           <Pressable
             key={opt.value}
-            style={[styles.chip, active ? styles.chipActive : null]}
+            style={[styles.chip, active ? styles.chipActive : null, disabled || opt.disabled ? styles.buttonDisabled : null]}
+            disabled={disabled || opt.disabled}
             onPress={() => {
               if (active) onChange(value.filter((v) => v !== opt.value));
               else onChange([...value, opt.value]);

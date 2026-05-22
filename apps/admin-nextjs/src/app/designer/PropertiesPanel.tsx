@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 import type { Node } from "@transform/contracts/form-types";
+import { validateExpressionSyntax } from "@transform/contracts/expressions";
 import { isControl, isLayout } from "./types";
 
 type Tab = "general" | "validation" | "advanced";
@@ -105,18 +106,19 @@ export function PropertiesPanel({
           <>
             <TextField label="Label" value={node.label ?? ""} onChange={(label) => onChange({ label })} />
             <TextField label="Key" value={node.key} onChange={(key) => onChange({ key })} />
-            <BoolField label="Required" value={!!node.validation?.required} onChange={(required) => onChange({ validation: { ...(node.validation ?? {}), required } })} />
+            <BoolField label="Required" value={node.validation?.required ?? false} onChange={(required) => onChange({ validation: { ...(node.validation ?? {}), required } })} />
             <SectionTitle title="Base Control Props" />
             <TextField label="Placeholder" value={props.placeholder ?? ""} onChange={(placeholder) => setProps(onChange, node, "placeholder", placeholder)} />
             <TextField label="Help Text" value={props.helpText ?? ""} onChange={(helpText) => setProps(onChange, node, "helpText", helpText)} />
             <TextField label="Default Value" value={props.defaultValue ?? ""} onChange={(defaultValue) => setProps(onChange, node, "defaultValue", defaultValue)} />
+            <TextField label="Value" value={props.value ?? ""} onChange={(value) => setProps(onChange, node, "value", value)} />
             <TextField label="Error Message" value={props.errorMessage ?? ""} onChange={(errorMessage) => setProps(onChange, node, "errorMessage", errorMessage)} />
           </>
         ) : null}
 
         {tab === "validation" ? (
           <>
-            <BoolField label="Required" value={!!node.validation?.required} onChange={(required) => onChange({ validation: { ...(node.validation ?? {}), required } })} />
+            <BoolField label="Required" value={node.validation?.required ?? false} onChange={(required) => onChange({ validation: { ...(node.validation ?? {}), required } })} />
             {node.controlType === "text" ? (
               <>
                 <NumberField label="Min Length" value={props.minLength} onChange={(minLength) => setProps(onChange, node, "minLength", minLength)} />
@@ -128,8 +130,8 @@ export function PropertiesPanel({
                 <NumberField label="Min" value={props.min} onChange={(min) => setProps(onChange, node, "min", min)} />
                 <NumberField label="Max" value={props.max} onChange={(max) => setProps(onChange, node, "max", max)} />
                 <NumberField label="Step" value={props.step} onChange={(step) => setProps(onChange, node, "step", step)} />
-                <BoolField label="Integer Only" value={!!props.integerOnly} onChange={(integerOnly) => setProps(onChange, node, "integerOnly", integerOnly)} />
-                <BoolField label="Allow Negative" value={!!props.allowNegative} onChange={(allowNegative) => setProps(onChange, node, "allowNegative", allowNegative)} />
+                <BoolField label="Integer Only" value={props.integerOnly ?? false} onChange={(integerOnly) => setProps(onChange, node, "integerOnly", integerOnly)} />
+                <BoolField label="Allow Negative" value={props.allowNegative ?? false} onChange={(allowNegative) => setProps(onChange, node, "allowNegative", allowNegative)} />
               </>
             ) : null}
             {node.controlType === "multiselect" ? (
@@ -157,10 +159,11 @@ export function PropertiesPanel({
           <>
             <SectionTitle title="Advanced Props" />
             <TextField label="Accessibility Label" value={props.accessibilityLabel ?? ""} onChange={(accessibilityLabel) => setProps(onChange, node, "accessibilityLabel", accessibilityLabel)} />
-            <BoolField label="Disabled" value={!!props.disabled} onChange={(disabled) => setProps(onChange, node, "disabled", disabled)} />
-            <BoolField label="Read Only" value={!!props.readOnly} onChange={(readOnly) => setProps(onChange, node, "readOnly", readOnly)} />
-            <BoolField label="Accessible" value={props.accessible ?? true} onChange={(accessible) => setProps(onChange, node, "accessible", accessible)} />
-            <BoolField label="Auto Focus" value={!!props.autoFocus} onChange={(autoFocus) => setProps(onChange, node, "autoFocus", autoFocus)} />
+            <BoolField label="Enabled" value={props.enabled ?? true} defaultValue={true} onChange={(enabled) => setProps(onChange, node, "enabled", enabled)} />
+            <BoolField label="Disabled" value={props.disabled ?? false} onChange={(disabled) => setProps(onChange, node, "disabled", disabled)} />
+            <BoolField label="Read Only" value={props.readOnly ?? false} onChange={(readOnly) => setProps(onChange, node, "readOnly", readOnly)} />
+            <BoolField label="Accessible" value={props.accessible ?? true} defaultValue={true} onChange={(accessible) => setProps(onChange, node, "accessible", accessible)} />
+            <BoolField label="Auto Focus" value={props.autoFocus ?? false} onChange={(autoFocus) => setProps(onChange, node, "autoFocus", autoFocus)} />
             <TextField label="Test ID" value={props.testID ?? ""} onChange={(testID) => setProps(onChange, node, "testID", testID)} />
             <ControlSpecificFields node={node} props={props} onChange={onChange} />
             <SectionTitle title="Style" />
@@ -195,8 +198,8 @@ function ControlSpecificFields({ node, props, onChange }: { node: any; props: Re
       <>
         <SectionTitle title="Text Control" />
         <SelectField label="Keyboard Type" value={props.keyboardType ?? "default"} options={["default", "email-address", "numeric", "phone-pad", "url", "decimal-pad", "number-pad"]} onChange={(keyboardType) => setProps(onChange, node, "keyboardType", keyboardType)} />
-        <BoolField label="Multiline" value={!!props.multiline} onChange={(multiline) => setProps(onChange, node, "multiline", multiline)} />
-        <BoolField label="Secure Text Entry" value={!!props.secureTextEntry} onChange={(secureTextEntry) => setProps(onChange, node, "secureTextEntry", secureTextEntry)} />
+        <BoolField label="Multiline" value={props.multiline ?? false} onChange={(multiline) => setProps(onChange, node, "multiline", multiline)} />
+        <BoolField label="Secure Text Entry" value={props.secureTextEntry ?? false} onChange={(secureTextEntry) => setProps(onChange, node, "secureTextEntry", secureTextEntry)} />
       </>
     );
   }
@@ -204,8 +207,8 @@ function ControlSpecificFields({ node, props, onChange }: { node: any; props: Re
     return (
       <>
         <SectionTitle title="Select Control" />
-        <BoolField label="Searchable" value={!!props.searchable} onChange={(searchable) => setProps(onChange, node, "searchable", searchable)} />
-        <BoolField label="Clearable" value={!!props.clearable} onChange={(clearable) => setProps(onChange, node, "clearable", clearable)} />
+        <BoolField label="Searchable" value={props.searchable ?? false} onChange={(searchable) => setProps(onChange, node, "searchable", searchable)} />
+        <BoolField label="Clearable" value={props.clearable ?? false} onChange={(clearable) => setProps(onChange, node, "clearable", clearable)} />
         <TextAreaField label="Options" value={valueToOptionsText((props.options ?? []) as Array<{ label: string; value: string }>)} onChange={(text) => setProps(onChange, node, "options", optionsTextToValue(text))} />
       </>
     );
@@ -235,9 +238,9 @@ function ControlSpecificFields({ node, props, onChange }: { node: any; props: Re
       <>
         <SectionTitle title="Image Control" />
         <TextField label="Button Label" value={props.buttonLabel ?? ""} onChange={(buttonLabel) => setProps(onChange, node, "buttonLabel", buttonLabel)} />
-        <BoolField label="Allow Camera" value={props.allowCamera !== false} onChange={(allowCamera) => setProps(onChange, node, "allowCamera", allowCamera)} />
-        <BoolField label="Allow Gallery" value={props.allowGallery !== false} onChange={(allowGallery) => setProps(onChange, node, "allowGallery", allowGallery)} />
-        <BoolField label="Allow Editing" value={!!props.allowsEditing} onChange={(allowsEditing) => setProps(onChange, node, "allowsEditing", allowsEditing)} />
+        <BoolField label="Allow Camera" value={props.allowCamera ?? true} defaultValue={true} onChange={(allowCamera) => setProps(onChange, node, "allowCamera", allowCamera)} />
+        <BoolField label="Allow Gallery" value={props.allowGallery ?? true} defaultValue={true} onChange={(allowGallery) => setProps(onChange, node, "allowGallery", allowGallery)} />
+        <BoolField label="Allow Editing" value={props.allowsEditing ?? false} onChange={(allowsEditing) => setProps(onChange, node, "allowsEditing", allowsEditing)} />
         <NumberField label="Quality (0-1)" value={props.quality} onChange={(quality) => setProps(onChange, node, "quality", quality)} />
       </>
     );
@@ -246,7 +249,7 @@ function ControlSpecificFields({ node, props, onChange }: { node: any; props: Re
     return (
       <>
         <SectionTitle title="File Control" />
-        <BoolField label="Multiple" value={!!props.multiple} onChange={(multiple) => setProps(onChange, node, "multiple", multiple)} />
+        <BoolField label="Multiple" value={props.multiple ?? false} onChange={(multiple) => setProps(onChange, node, "multiple", multiple)} />
         <TextAreaField label="Allowed MIME Types" value={(props.allowedMimeTypes ?? []).join("\n")} onChange={(text) => setProps(onChange, node, "allowedMimeTypes", text.split("\n").map((v) => v.trim()).filter(Boolean))} />
       </>
     );
@@ -274,20 +277,43 @@ function SectionTitle({ title }: { title: string }) {
   return <div style={sectionTitle}>{title}</div>;
 }
 
-function BoolField({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
+type ExpressionCapableBool = boolean | string | undefined;
+type ExpressionCapableNumber = number | string | undefined;
+
+function isExpression(value: unknown): value is string {
+  return typeof value === "string" && value.startsWith("=");
+}
+
+function BoolField({ label, value, defaultValue = false, onChange }: { label: string; value: ExpressionCapableBool; defaultValue?: boolean; onChange: (v: boolean | string) => void }) {
+  const expression = isExpression(value) ? value : "";
+  const checked = typeof value === "boolean" ? value : defaultValue;
   return (
-    <label style={inline}>
-      <input type="checkbox" checked={value} onChange={(e) => onChange(e.target.checked)} />
-      <span>{label}</span>
-    </label>
+    <div style={labelStyle}>
+      <label style={inline}>
+        <input type="checkbox" checked={checked} disabled={!!expression} onChange={(e) => onChange(e.target.checked)} />
+        <span>{label}</span>
+      </label>
+      <input
+        style={{ ...input, marginTop: 6 }}
+        value={expression}
+        placeholder="=formula"
+        onChange={(e) => {
+          const next = e.target.value.trim();
+          onChange(next.startsWith("=") ? next : checked);
+        }}
+      />
+      <FormulaHint value={expression} />
+    </div>
   );
 }
 
 function TextField({ label, value, onChange }: { label: string; value: string | number | undefined; onChange: (value: string) => void }) {
+  const textValue = value ?? "";
   return (
     <label style={labelStyle}>
       {label}
-      <input style={input} value={value ?? ""} onChange={(e) => onChange(e.target.value)} />
+      <input style={input} value={textValue} onChange={(e) => onChange(e.target.value)} />
+      <FormulaHint value={typeof textValue === "string" ? textValue : ""} />
     </label>
   );
 }
@@ -301,13 +327,29 @@ function TextAreaField({ label, value, onChange }: { label: string; value: strin
   );
 }
 
-function NumberField({ label, value, onChange }: { label: string; value: number | undefined; onChange: (value: number | undefined) => void }) {
+function NumberField({ label, value, onChange }: { label: string; value: ExpressionCapableNumber; onChange: (value: number | string | undefined) => void }) {
+  const expression = isExpression(value) ? value : "";
   return (
     <label style={labelStyle}>
       {label}
-      <input style={input} type="number" value={value ?? ""} onChange={(e) => onChange(numberOrUndefined(e.target.value))} />
+      <input
+        style={input}
+        type={expression ? "text" : "number"}
+        value={value ?? ""}
+        onChange={(e) => {
+          const next = e.target.value.trim();
+          onChange(next.startsWith("=") ? next : numberOrUndefined(next));
+        }}
+      />
+      <FormulaHint value={expression} />
     </label>
   );
+}
+
+function FormulaHint({ value }: { value: string }) {
+  if (!isExpression(value)) return null;
+  const issue = validateExpressionSyntax(value)[0];
+  return <span style={issue ? formulaError : formulaOk}>{issue ? issue.message : "Formula syntax is valid."}</span>;
 }
 
 function SelectField({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (value: string) => void }) {
@@ -397,6 +439,8 @@ const input: React.CSSProperties = {
   color: "#344054",
   background: "#fff",
 };
+const formulaOk: React.CSSProperties = { color: "#067647", fontSize: 12, fontWeight: 700 };
+const formulaError: React.CSSProperties = { color: "#b42318", fontSize: 12, fontWeight: 700 };
 
 const accordionBtn: React.CSSProperties = {
   width: "100%",

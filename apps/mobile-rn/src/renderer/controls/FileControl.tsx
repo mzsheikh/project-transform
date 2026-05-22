@@ -6,7 +6,7 @@ import type { ControlNode } from "@transform/contracts/form-types";
 import type { FileRefLocal, SubmissionDataValue } from "@transform/contracts/submission-types";
 
 import type { SetValue } from "../types";
-import { cryptoLikeId } from "../renderer-utils";
+import { cryptoLikeId, getBoolProp } from "../renderer-utils";
 import { styles } from "../renderer-styles";
 import { FieldShell } from "./FieldShell";
 
@@ -19,8 +19,10 @@ export type FileControlProps = {
 
 export function FileControl({ node, value, setValue, error }: FileControlProps) {
   const current = Array.isArray(value) ? (value as FileRefLocal[]) : [];
+  const disabled = getBoolProp(node.props, "disabled") === true || getBoolProp(node.props, "readOnly") === true;
 
   async function handlePick() {
+    if (disabled) return;
     const props = node.props as { accept?: string[]; maxFiles?: number } | undefined;
     const result = await DocumentPicker.getDocumentAsync({
       type: props?.accept ?? "*/*",
@@ -49,7 +51,7 @@ export function FileControl({ node, value, setValue, error }: FileControlProps) 
   return (
     <FieldShell label={node.label} error={error}>
       <View>
-        <Pressable style={styles.buttonSecondary} onPress={handlePick}>
+        <Pressable style={[styles.buttonSecondary, disabled ? styles.buttonDisabled : null]} disabled={disabled} onPress={handlePick}>
           <Text style={styles.buttonSecondaryText}>Add File</Text>
         </Pressable>
         {current.length > 0 ? (

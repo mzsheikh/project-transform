@@ -16,11 +16,13 @@ export type SwitchControlProps = {
 };
 
 export function SwitchControl({ node, value, setValue, error }: SwitchControlProps) {
+  const disabled = getBoolProp(node.props, "disabled") === true || getBoolProp(node.props, "readOnly") === true;
   return (
     <FieldShell label={node.label} error={error} inline>
       <Switch
         value={typeof value === "boolean" ? value : Boolean(getBoolProp(node.props, "defaultValue"))}
         onValueChange={(v) => setValue(node.key, v)}
+        disabled={disabled}
       />
     </FieldShell>
   );

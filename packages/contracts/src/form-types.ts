@@ -1,6 +1,10 @@
 // packages/contracts/src/form-types.ts
 
-export type SchemaVersion = "1.0";
+import type { SubmissionDataValue } from "./submission-types";
+
+export type SchemaVersion = "1.0" | "1.1";
+export type ExpressionString = `=${string}`;
+export type DynamicValue<T> = T | ExpressionString;
 
 export type FormStatus = "draft" | "published" | "archived";
 
@@ -46,7 +50,7 @@ export type Condition =
 export type Node = LayoutNode | ControlNode;
 
 /** Layouts */
-export type LayoutType = "stack" | "row" | "section" | "repeater";
+export type LayoutType = "form" | "stack" | "row" | "section" | "repeater";
 
 export interface LayoutNode extends BaseNode {
   type: "layout";
@@ -102,28 +106,34 @@ export type ControlProps =
   | FileProps;
 
 export interface BaseControlProps {
-  placeholder?: string;
-  required?: boolean;
-  disabled?: boolean;
-  readOnly?: boolean;
-  helpText?: string;
-  errorMessage?: string;
-  defaultValue?: unknown;
-  autoFocus?: boolean;
-  accessibilityLabel?: string;
-  accessible?: boolean;
+  [key: string]: unknown;
+  placeholder?: DynamicValue<string>;
+  required?: DynamicValue<boolean>;
+  enabled?: DynamicValue<boolean>;
+  disabled?: DynamicValue<boolean>;
+  readOnly?: DynamicValue<boolean>;
+  visible?: DynamicValue<boolean>;
+  visibleWhen?: DynamicValue<boolean>;
+  helpText?: DynamicValue<string>;
+  errorMessage?: DynamicValue<string>;
+  defaultValue?: DynamicValue<SubmissionDataValue>;
+  value?: DynamicValue<SubmissionDataValue>;
+  autoFocus?: DynamicValue<boolean>;
+  accessibilityLabel?: DynamicValue<string>;
+  accessible?: DynamicValue<boolean>;
   testID?: string;
   style?: ControlStyleProps;
 }
 
 export interface ControlStyleProps {
-  width?: number | string;
-  padding?: number;
-  margin?: number;
-  borderRadius?: number;
-  fontSize?: number;
-  color?: string;
-  backgroundColor?: string;
+  [key: string]: unknown;
+  width?: DynamicValue<number | string>;
+  padding?: DynamicValue<number>;
+  margin?: DynamicValue<number>;
+  borderRadius?: DynamicValue<number>;
+  fontSize?: DynamicValue<number>;
+  color?: DynamicValue<string>;
+  backgroundColor?: DynamicValue<string>;
 }
 
 export interface RNOption {
@@ -133,16 +143,16 @@ export interface RNOption {
 }
 
 export interface ValidationRules {
-  required?: boolean;
+  required?: DynamicValue<boolean>;
 
   // string / number bounds (optional, per control)
-  minLength?: number;
-  maxLength?: number;
-  min?: number;
-  max?: number;
+  minLength?: DynamicValue<number>;
+  maxLength?: DynamicValue<number>;
+  min?: DynamicValue<number>;
+  max?: DynamicValue<number>;
 
   // arrays
-  maxItems?: number;
+  maxItems?: DynamicValue<number>;
 }
 
 /** --- Individual control props --- */
@@ -167,26 +177,26 @@ export interface TextProps extends BaseControlProps {
   textAlign?: "left" | "center" | "right" | "auto";
   returnKeyType?: "done" | "next" | "search" | "go" | "send";
   blurOnSubmit?: boolean;
-  maxLength?: number;
+  maxLength?: DynamicValue<number>;
   /** legacy maxLength kept for compatibility */
   // keep in control props for validation usage and compatibility with previous schema
-  minLength?: number;
+  minLength?: DynamicValue<number>;
 }
 
 export interface NumberProps extends BaseControlProps {
   /** React Native TextInput for numeric entry */
   keyboardType?: "number-pad" | "decimal-pad" | "numeric";
-  integerOnly?: boolean;
-  precision?: number;
-  allowNegative?: boolean;
+  integerOnly?: DynamicValue<boolean>;
+  precision?: DynamicValue<number>;
+  allowNegative?: DynamicValue<boolean>;
   format?: "decimal" | "currency";
-  min?: number;
-  max?: number;
-  step?: number;
+  min?: DynamicValue<number>;
+  max?: DynamicValue<number>;
+  step?: DynamicValue<number>;
 }
 
 export interface SwitchProps extends BaseControlProps {
-  defaultValue?: boolean;
+  defaultValue?: DynamicValue<boolean>;
   trackColor?: {
     true: string;
     false: string;
@@ -208,7 +218,7 @@ export interface DropdownProps extends BaseControlProps {
   clearable?: boolean;
   closeAfterSelect?: boolean;
   showSearchInput?: boolean;
-  disabled?: boolean;
+  disabled?: DynamicValue<boolean>;
 }
 
 export interface MultiSelectProps extends BaseControlProps {
@@ -218,17 +228,17 @@ export interface MultiSelectProps extends BaseControlProps {
   clearable?: boolean;
   closeAfterSelect?: boolean;
   showSearchInput?: boolean;
-  minSelected?: number;
-  maxSelected?: number;
-  disabled?: boolean;
+  minSelected?: DynamicValue<number>;
+  maxSelected?: DynamicValue<number>;
+  disabled?: DynamicValue<boolean>;
   chipStyle?: "outlined" | "filled" | "compact";
 }
 
 export interface DateProps extends BaseControlProps {
   mode?: "date" | "time" | "datetime";
   display?: "default" | "spinner" | "calendar" | "clock";
-  minimumDate?: string;
-  maximumDate?: string;
+  minimumDate?: DynamicValue<string>;
+  maximumDate?: DynamicValue<string>;
   minuteInterval?: 1 | 5 | 10 | 15 | 30;
   locale?: string;
   timezone?: string;
@@ -239,34 +249,34 @@ export interface DateProps extends BaseControlProps {
 export interface SignatureProps extends BaseControlProps {
   imageType?: "png" | "jpg";
   penColor?: string;
-  penWidth?: number;
-  width?: number;
-  height?: number;
-  backgroundColor?: string;
-  quality?: number;
-  showClear?: boolean;
+  penWidth?: DynamicValue<number>;
+  width?: DynamicValue<number>;
+  height?: DynamicValue<number>;
+  backgroundColor?: DynamicValue<string>;
+  quality?: DynamicValue<number>;
+  showClear?: DynamicValue<boolean>;
 }
 
 export interface ImageProps extends BaseControlProps {
-  buttonLabel?: string;
-  allowCamera?: boolean;
-  allowGallery?: boolean;
-  allowsEditing?: boolean;
-  quality?: number;
+  buttonLabel?: DynamicValue<string>;
+  allowCamera?: DynamicValue<boolean>;
+  allowGallery?: DynamicValue<boolean>;
+  allowsEditing?: DynamicValue<boolean>;
+  quality?: DynamicValue<number>;
 }
 
 export interface FileProps extends BaseControlProps {
   accept?: string[]; // e.g. ["image/*", "application/pdf"]
-  maxFiles?: number;
-  maxSizeMB?: number;
-  multiple?: boolean;
+  maxFiles?: DynamicValue<number>;
+  maxSizeMB?: DynamicValue<number>;
+  multiple?: DynamicValue<boolean>;
   capture?: "user" | "environment" | false;
-  maxWidth?: number;
-  maxHeight?: number;
-  maxDurationSeconds?: number;
+  maxWidth?: DynamicValue<number>;
+  maxHeight?: DynamicValue<number>;
+  maxDurationSeconds?: DynamicValue<number>;
   storage?: "local" | "cloud";
   uploadEndpoint?: string;
-  autoUpload?: boolean;
+  autoUpload?: DynamicValue<boolean>;
   allowedMimeTypes?: string[];
 }
 

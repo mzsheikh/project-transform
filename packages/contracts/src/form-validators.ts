@@ -9,8 +9,14 @@ import type {
   NumberProps,
   TextProps,
   FileProps,
+  ValidationRules,
 } from "./form-types";
 import type { SubmissionDataValue } from "./submission-types";
+import {
+  evaluateCalculatedFormData,
+  resolveControlState,
+  resolveDynamicValue,
+} from "./expressions";
 
 export type ValidationError = { key: string; message: string };
 
@@ -18,35 +24,55 @@ export function validateFormData(
   form: FormDefinition,
   data: Record<string, SubmissionDataValue>
 ): ValidationError[] {
-  const errors: ValidationError[] = [];
-  validateNode(form.root, data, "", errors);
+  const calculated = evaluateCalculatedFormData(form, data);
+  const errors: ValidationError[] = calculated.errors.map((error) => ({
+    key: error.key ?? error.path,
+    message: error.message,
+  }));
+  validateNode(form.root, calculated.data, calculated.data, "", errors);
   return errors;
 }
 
 function validateNode(
   node: Node,
+  rootData: Record<string, SubmissionDataValue>,
   data: Record<string, SubmissionDataValue>,
   prefix: string,
   errors: ValidationError[]
 ) {
   if (node.type === "control") {
-    const value = data[node.key];
-    const messages = validateControlValue(node, value);
+    const props = (node.props ?? {}) as Record<string, unknown>;
+    const state = resolveControlState(node, { rootData, itemData: data });
     const errorKey = prefix ? `${prefix}.${node.key}` : node.key;
+    for (const error of state.errors) {
+      errors.push({ key: errorKey, message: error.message });
+    }
+    if (!state.visible) return;
+    if (state.disabled && props.value === undefined) return;
+
+    const validation = resolveValidation(node, rootData, data, errorKey, errors);
+    const effectiveNode: ControlNode = {
+      ...node,
+      props: state.props as ControlNode["props"],
+      validation,
+    };
+    const value = data[node.key];
+    const messages = validateControlValue(effectiveNode, value);
     for (const message of messages) errors.push({ key: errorKey, message });
     return;
   }
 
   if (node.layoutType === "repeater") {
-    validateRepeater(node, data, prefix, errors);
+    validateRepeater(node, rootData, data, prefix, errors);
     return;
   }
 
-  node.children.forEach((child) => validateNode(child, data, prefix, errors));
+  node.children.forEach((child) => validateNode(child, rootData, data, prefix, errors));
 }
 
 function validateRepeater(
   node: LayoutNode,
+  rootData: Record<string, SubmissionDataValue>,
   data: Record<string, SubmissionDataValue>,
   prefix: string,
   errors: ValidationError[]
@@ -68,14 +94,14 @@ function validateRepeater(
 
   items.forEach((item, index) => {
     const childPrefix = `${errorKey}.${index}`;
-    node.children.forEach((child) => validateNode(child, item, childPrefix, errors));
+    node.children.forEach((child) => validateNode(child, rootData, item, childPrefix, errors));
   });
 }
 
 export function validateControlValue(node: ControlNode, value: SubmissionDataValue): string[] {
   const errors: string[] = [];
 
-  if (node.validation?.required && isEmptyValue(value)) {
+  if (node.validation?.required === true && isEmptyValue(value)) {
     errors.push("This field is required.");
     return errors;
   }
@@ -84,8 +110,8 @@ export function validateControlValue(node: ControlNode, value: SubmissionDataVal
     case "text": {
       if (typeof value !== "string") return errors;
       const props = node.props as TextProps | undefined;
-      const minLength = node.validation?.minLength;
-      const maxLength = node.validation?.maxLength ?? props?.maxLength;
+      const minLength = numberValue(node.validation?.minLength);
+      const maxLength = numberValue(node.validation?.maxLength) ?? numberValue(props?.maxLength);
       if (minLength !== undefined && value.length < minLength) {
         errors.push(`Must be at least ${minLength} characters.`);
       }
@@ -98,8 +124,8 @@ export function validateControlValue(node: ControlNode, value: SubmissionDataVal
     case "number": {
       if (typeof value !== "number") return errors;
       const props = node.props as NumberProps | undefined;
-      const min = node.validation?.min ?? props?.min;
-      const max = node.validation?.max ?? props?.max;
+      const min = numberValue(node.validation?.min) ?? numberValue(props?.min);
+      const max = numberValue(node.validation?.max) ?? numberValue(props?.max);
       if (min !== undefined && value < min) {
         errors.push(`Must be at least ${min}.`);
       }
@@ -112,7 +138,7 @@ export function validateControlValue(node: ControlNode, value: SubmissionDataVal
     case "multiselect": {
       if (!Array.isArray(value)) return errors;
       const props = node.props as MultiSelectProps | undefined;
-      const maxItems = node.validation?.maxItems ?? props?.maxSelected;
+      const maxItems = numberValue(node.validation?.maxItems) ?? numberValue(props?.maxSelected);
       if (maxItems !== undefined && value.length > maxItems) {
         errors.push(`Select no more than ${maxItems} items.`);
       }
@@ -128,7 +154,7 @@ export function validateControlValue(node: ControlNode, value: SubmissionDataVal
 
     case "file": {
       const props = node.props as FileProps | undefined;
-      const maxItems = node.validation?.maxItems ?? props?.maxFiles;
+      const maxItems = numberValue(node.validation?.maxItems) ?? numberValue(props?.maxFiles);
       const count = Array.isArray(value) ? value.length : value ? 1 : 0;
       if (maxItems !== undefined && count > maxItems) {
         errors.push(`Attach no more than ${maxItems} files.`);
@@ -139,6 +165,23 @@ export function validateControlValue(node: ControlNode, value: SubmissionDataVal
     default:
       return errors;
   }
+}
+
+function resolveValidation(
+  node: ControlNode,
+  rootData: Record<string, SubmissionDataValue>,
+  data: Record<string, SubmissionDataValue>,
+  errorKey: string,
+  errors: ValidationError[],
+): ValidationRules | undefined {
+  if (!node.validation) return undefined;
+  const resolved = resolveDynamicValue(node.validation, { rootData, itemData: data }, `controls.${node.key}.validation`);
+  for (const error of resolved.errors) {
+    errors.push({ key: errorKey, message: error.message });
+  }
+  return resolved.value && typeof resolved.value === "object" && !Array.isArray(resolved.value)
+    ? (resolved.value as ValidationRules)
+    : undefined;
 }
 
 export function findControlNode(form: FormDefinition, key: string): ControlNode | undefined {
@@ -164,4 +207,8 @@ function isEmptyValue(v: SubmissionDataValue): boolean {
 
 function isRecordValue(value: unknown): value is Record<string, SubmissionDataValue> {
   return !!value && typeof value === "object" && !Array.isArray(value) && !("fileId" in (value as Record<string, unknown>));
+}
+
+function numberValue(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }

@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { ControlNode, FormDefinition, LayoutNode, Node } from "@transform/contracts/form-types";
+import { formHasExpressions, validateFormExpressions } from "@transform/contracts/expressions";
 import { Toolbox, type ToolboxItem } from "./Toolbox";
 import { CanvasTree } from "./CanvasTree";
 import { PropertiesPanel } from "./PropertiesPanel";
@@ -100,13 +101,14 @@ export function FormDesigner({
 
   async function onSaveDraft() {
     if (!schema) return;
+    const schemaToSave = withExpressionSchemaVersion(schema);
 
     setStatus("Saving...");
     try {
-      await saveDraft.mutateAsync({ schemaJson: schema });
+      await saveDraft.mutateAsync({ schemaJson: schemaToSave });
       markSaved();
       setStatus("Saved");
-      onSaved?.(schema);
+      onSaved?.(schemaToSave);
     } catch (e: any) {
       setStatus(`Error: ${e.message ?? "save failed"}`);
     }
@@ -114,15 +116,21 @@ export function FormDesigner({
 
   async function onPublish() {
     if (!schema) return;
+    const schemaToSave = withExpressionSchemaVersion(schema);
+    const expressionIssues = validateFormExpressions(schemaToSave);
+    if (expressionIssues.length > 0) {
+      setStatus(`Expression error: ${expressionIssues[0].message}`);
+      return;
+    }
 
     setSaveMenuOpen(false);
     setStatus("Publishing...");
     try {
-      await saveDraft.mutateAsync({ schemaJson: schema });
+      await saveDraft.mutateAsync({ schemaJson: schemaToSave });
       const published = await publish.mutateAsync();
       markSaved();
       setStatus(`Published v${published.version}`);
-      onSaved?.(schema);
+      onSaved?.(schemaToSave);
     } catch (e: any) {
       setStatus(`Error: ${e.message ?? "publish failed"}`);
     }
@@ -249,6 +257,12 @@ export function FormDesigner({
       ) : null}
     </div>
   );
+}
+
+function withExpressionSchemaVersion(schema: FormDefinition): FormDefinition {
+  return formHasExpressions(schema) && schema.schemaVersion !== "1.1"
+    ? { ...schema, schemaVersion: "1.1" }
+    : schema;
 }
 
 function getNodePath(root: LayoutNode, selectedId: string): string[] | null {
