@@ -4,6 +4,7 @@
 import { useState } from "react";
 import type { Node } from "@transform/contracts/form-types";
 import { validateExpressionSyntax } from "@transform/contracts/expressions";
+import { ExpressionInput, type ExpressionFieldInfo } from "./ExpressionInput";
 import { isControl, isLayout } from "./types";
 
 type Tab = "general" | "validation" | "advanced";
@@ -48,10 +49,12 @@ export function PropertiesPanel({
   node,
   onChange,
   onClose,
+  expressionFields = [],
 }: {
   node: Node | null;
   onChange: (patch: Partial<any>) => void;
   onClose?: () => void;
+  expressionFields?: ExpressionFieldInfo[];
 }) {
   const [tab, setTab] = useState<Tab>("general");
   const [visibilityOpen, setVisibilityOpen] = useState(false);
@@ -106,50 +109,50 @@ export function PropertiesPanel({
           <>
             <TextField label="Label" value={node.label ?? ""} onChange={(label) => onChange({ label })} />
             <TextField label="Key" value={node.key} onChange={(key) => onChange({ key })} />
-            <BoolField label="Required" value={node.validation?.required ?? false} onChange={(required) => onChange({ validation: { ...(node.validation ?? {}), required } })} />
+            <BoolField label="Required" value={node.validation?.required ?? false} expressionFields={expressionFields} onChange={(required) => onChange({ validation: { ...(node.validation ?? {}), required } })} />
             <SectionTitle title="Base Control Props" />
-            <TextField label="Placeholder" value={props.placeholder ?? ""} onChange={(placeholder) => setProps(onChange, node, "placeholder", placeholder)} />
-            <TextField label="Help Text" value={props.helpText ?? ""} onChange={(helpText) => setProps(onChange, node, "helpText", helpText)} />
-            <TextField label="Default Value" value={props.defaultValue ?? ""} onChange={(defaultValue) => setProps(onChange, node, "defaultValue", defaultValue)} />
-            <TextField label="Value" value={props.value ?? ""} onChange={(value) => setProps(onChange, node, "value", value)} />
-            <TextField label="Error Message" value={props.errorMessage ?? ""} onChange={(errorMessage) => setProps(onChange, node, "errorMessage", errorMessage)} />
+            <TextField label="Placeholder" value={props.placeholder ?? ""} enableExpressions expressionFields={expressionFields} onChange={(placeholder) => setProps(onChange, node, "placeholder", placeholder)} />
+            <TextField label="Help Text" value={props.helpText ?? ""} enableExpressions expressionFields={expressionFields} onChange={(helpText) => setProps(onChange, node, "helpText", helpText)} />
+            <TextField label="Default Value" value={props.defaultValue ?? ""} enableExpressions expressionFields={expressionFields} onChange={(defaultValue) => setProps(onChange, node, "defaultValue", defaultValue)} />
+            <TextField label="Value" value={props.value ?? ""} enableExpressions expressionFields={expressionFields} onChange={(value) => setProps(onChange, node, "value", value)} />
+            <TextField label="Error Message" value={props.errorMessage ?? ""} enableExpressions expressionFields={expressionFields} onChange={(errorMessage) => setProps(onChange, node, "errorMessage", errorMessage)} />
           </>
         ) : null}
 
         {tab === "validation" ? (
           <>
-            <BoolField label="Required" value={node.validation?.required ?? false} onChange={(required) => onChange({ validation: { ...(node.validation ?? {}), required } })} />
+            <BoolField label="Required" value={node.validation?.required ?? false} expressionFields={expressionFields} onChange={(required) => onChange({ validation: { ...(node.validation ?? {}), required } })} />
             {node.controlType === "text" ? (
               <>
-                <NumberField label="Min Length" value={props.minLength} onChange={(minLength) => setProps(onChange, node, "minLength", minLength)} />
-                <NumberField label="Max Length" value={props.maxLength} onChange={(maxLength) => setProps(onChange, node, "maxLength", maxLength)} />
+                <NumberField label="Min Length" value={props.minLength} expressionFields={expressionFields} onChange={(minLength) => setProps(onChange, node, "minLength", minLength)} />
+                <NumberField label="Max Length" value={props.maxLength} expressionFields={expressionFields} onChange={(maxLength) => setProps(onChange, node, "maxLength", maxLength)} />
               </>
             ) : null}
             {node.controlType === "number" ? (
               <>
-                <NumberField label="Min" value={props.min} onChange={(min) => setProps(onChange, node, "min", min)} />
-                <NumberField label="Max" value={props.max} onChange={(max) => setProps(onChange, node, "max", max)} />
-                <NumberField label="Step" value={props.step} onChange={(step) => setProps(onChange, node, "step", step)} />
-                <BoolField label="Integer Only" value={props.integerOnly ?? false} onChange={(integerOnly) => setProps(onChange, node, "integerOnly", integerOnly)} />
-                <BoolField label="Allow Negative" value={props.allowNegative ?? false} onChange={(allowNegative) => setProps(onChange, node, "allowNegative", allowNegative)} />
+                <NumberField label="Min" value={props.min} expressionFields={expressionFields} onChange={(min) => setProps(onChange, node, "min", min)} />
+                <NumberField label="Max" value={props.max} expressionFields={expressionFields} onChange={(max) => setProps(onChange, node, "max", max)} />
+                <NumberField label="Step" value={props.step} expressionFields={expressionFields} onChange={(step) => setProps(onChange, node, "step", step)} />
+                <BoolField label="Integer Only" value={props.integerOnly ?? false} expressionFields={expressionFields} onChange={(integerOnly) => setProps(onChange, node, "integerOnly", integerOnly)} />
+                <BoolField label="Allow Negative" value={props.allowNegative ?? false} expressionFields={expressionFields} onChange={(allowNegative) => setProps(onChange, node, "allowNegative", allowNegative)} />
               </>
             ) : null}
             {node.controlType === "multiselect" ? (
               <>
-                <NumberField label="Min Selected" value={props.minSelected} onChange={(minSelected) => setProps(onChange, node, "minSelected", minSelected)} />
-                <NumberField label="Max Selected" value={props.maxSelected} onChange={(maxSelected) => setProps(onChange, node, "maxSelected", maxSelected)} />
+                <NumberField label="Min Selected" value={props.minSelected} expressionFields={expressionFields} onChange={(minSelected) => setProps(onChange, node, "minSelected", minSelected)} />
+                <NumberField label="Max Selected" value={props.maxSelected} expressionFields={expressionFields} onChange={(maxSelected) => setProps(onChange, node, "maxSelected", maxSelected)} />
               </>
             ) : null}
             {node.controlType === "date" ? (
               <>
-                <TextField label="Minimum Date" value={props.minimumDate ?? ""} onChange={(minimumDate) => setProps(onChange, node, "minimumDate", minimumDate)} />
-                <TextField label="Maximum Date" value={props.maximumDate ?? ""} onChange={(maximumDate) => setProps(onChange, node, "maximumDate", maximumDate)} />
+                <TextField label="Minimum Date" value={props.minimumDate ?? ""} enableExpressions expressionFields={expressionFields} onChange={(minimumDate) => setProps(onChange, node, "minimumDate", minimumDate)} />
+                <TextField label="Maximum Date" value={props.maximumDate ?? ""} enableExpressions expressionFields={expressionFields} onChange={(maximumDate) => setProps(onChange, node, "maximumDate", maximumDate)} />
               </>
             ) : null}
             {node.controlType === "file" ? (
               <>
-                <NumberField label="Max Files" value={props.maxFiles} onChange={(maxFiles) => setProps(onChange, node, "maxFiles", maxFiles)} />
-                <NumberField label="Max Size MB" value={props.maxSizeMB} onChange={(maxSizeMB) => setProps(onChange, node, "maxSizeMB", maxSizeMB)} />
+                <NumberField label="Max Files" value={props.maxFiles} expressionFields={expressionFields} onChange={(maxFiles) => setProps(onChange, node, "maxFiles", maxFiles)} />
+                <NumberField label="Max Size MB" value={props.maxSizeMB} expressionFields={expressionFields} onChange={(maxSizeMB) => setProps(onChange, node, "maxSizeMB", maxSizeMB)} />
               </>
             ) : null}
           </>
@@ -158,22 +161,22 @@ export function PropertiesPanel({
         {tab === "advanced" ? (
           <>
             <SectionTitle title="Advanced Props" />
-            <TextField label="Accessibility Label" value={props.accessibilityLabel ?? ""} onChange={(accessibilityLabel) => setProps(onChange, node, "accessibilityLabel", accessibilityLabel)} />
-            <BoolField label="Enabled" value={props.enabled ?? true} defaultValue={true} onChange={(enabled) => setProps(onChange, node, "enabled", enabled)} />
-            <BoolField label="Disabled" value={props.disabled ?? false} onChange={(disabled) => setProps(onChange, node, "disabled", disabled)} />
-            <BoolField label="Read Only" value={props.readOnly ?? false} onChange={(readOnly) => setProps(onChange, node, "readOnly", readOnly)} />
-            <BoolField label="Accessible" value={props.accessible ?? true} defaultValue={true} onChange={(accessible) => setProps(onChange, node, "accessible", accessible)} />
-            <BoolField label="Auto Focus" value={props.autoFocus ?? false} onChange={(autoFocus) => setProps(onChange, node, "autoFocus", autoFocus)} />
+            <TextField label="Accessibility Label" value={props.accessibilityLabel ?? ""} enableExpressions expressionFields={expressionFields} onChange={(accessibilityLabel) => setProps(onChange, node, "accessibilityLabel", accessibilityLabel)} />
+            <BoolField label="Enabled" value={props.enabled ?? true} defaultValue={true} expressionFields={expressionFields} onChange={(enabled) => setProps(onChange, node, "enabled", enabled)} />
+            <BoolField label="Disabled" value={props.disabled ?? false} expressionFields={expressionFields} onChange={(disabled) => setProps(onChange, node, "disabled", disabled)} />
+            <BoolField label="Read Only" value={props.readOnly ?? false} expressionFields={expressionFields} onChange={(readOnly) => setProps(onChange, node, "readOnly", readOnly)} />
+            <BoolField label="Accessible" value={props.accessible ?? true} defaultValue={true} expressionFields={expressionFields} onChange={(accessible) => setProps(onChange, node, "accessible", accessible)} />
+            <BoolField label="Auto Focus" value={props.autoFocus ?? false} expressionFields={expressionFields} onChange={(autoFocus) => setProps(onChange, node, "autoFocus", autoFocus)} />
             <TextField label="Test ID" value={props.testID ?? ""} onChange={(testID) => setProps(onChange, node, "testID", testID)} />
-            <ControlSpecificFields node={node} props={props} onChange={onChange} />
+            <ControlSpecificFields node={node} props={props} expressionFields={expressionFields} onChange={onChange} />
             <SectionTitle title="Style" />
-            <TextField label="Width" value={props.style?.width ?? ""} onChange={(width) => setProps(onChange, node, "style.width", width)} />
-            <NumberField label="Padding" value={props.style?.padding} onChange={(padding) => setProps(onChange, node, "style.padding", padding)} />
-            <NumberField label="Margin" value={props.style?.margin} onChange={(margin) => setProps(onChange, node, "style.margin", margin)} />
-            <NumberField label="Border Radius" value={props.style?.borderRadius} onChange={(borderRadius) => setProps(onChange, node, "style.borderRadius", borderRadius)} />
-            <NumberField label="Font Size" value={props.style?.fontSize} onChange={(fontSize) => setProps(onChange, node, "style.fontSize", fontSize)} />
-            <TextField label="Text Color" value={props.style?.color ?? ""} onChange={(color) => setProps(onChange, node, "style.color", color)} />
-            <TextField label="Background Color" value={props.style?.backgroundColor ?? ""} onChange={(backgroundColor) => setProps(onChange, node, "style.backgroundColor", backgroundColor)} />
+            <TextField label="Width" value={props.style?.width ?? ""} enableExpressions expressionFields={expressionFields} onChange={(width) => setProps(onChange, node, "style.width", width)} />
+            <NumberField label="Padding" value={props.style?.padding} expressionFields={expressionFields} onChange={(padding) => setProps(onChange, node, "style.padding", padding)} />
+            <NumberField label="Margin" value={props.style?.margin} expressionFields={expressionFields} onChange={(margin) => setProps(onChange, node, "style.margin", margin)} />
+            <NumberField label="Border Radius" value={props.style?.borderRadius} expressionFields={expressionFields} onChange={(borderRadius) => setProps(onChange, node, "style.borderRadius", borderRadius)} />
+            <NumberField label="Font Size" value={props.style?.fontSize} expressionFields={expressionFields} onChange={(fontSize) => setProps(onChange, node, "style.fontSize", fontSize)} />
+            <TextField label="Text Color" value={props.style?.color ?? ""} enableExpressions expressionFields={expressionFields} onChange={(color) => setProps(onChange, node, "style.color", color)} />
+            <TextField label="Background Color" value={props.style?.backgroundColor ?? ""} enableExpressions expressionFields={expressionFields} onChange={(backgroundColor) => setProps(onChange, node, "style.backgroundColor", backgroundColor)} />
             <JsonField value={props} onChange={(nextProps) => onChange({ props: nextProps })} />
           </>
         ) : null}
@@ -185,31 +188,50 @@ export function PropertiesPanel({
       </button>
       {visibilityOpen ? (
         <div style={{ ...formGrid, paddingTop: 14 }}>
-          <TextField label="Visible When" value={props.visibleWhen ?? ""} onChange={(visibleWhen) => setProps(onChange, node, "visibleWhen", visibleWhen)} />
+          <TextField label="Visible When" value={props.visibleWhen ?? ""} enableExpressions expressionFields={expressionFields} onChange={(visibleWhen) => setProps(onChange, node, "visibleWhen", visibleWhen)} />
         </div>
       ) : null}
     </aside>
   );
 }
 
-function ControlSpecificFields({ node, props, onChange }: { node: any; props: Record<string, any>; onChange: (patch: any) => void }) {
+function ControlSpecificFields({
+  node,
+  props,
+  expressionFields,
+  onChange,
+}: {
+  node: any;
+  props: Record<string, any>;
+  expressionFields: ExpressionFieldInfo[];
+  onChange: (patch: any) => void;
+}) {
   if (node.controlType === "text") {
     return (
       <>
         <SectionTitle title="Text Control" />
         <SelectField label="Keyboard Type" value={props.keyboardType ?? "default"} options={["default", "email-address", "numeric", "phone-pad", "url", "decimal-pad", "number-pad"]} onChange={(keyboardType) => setProps(onChange, node, "keyboardType", keyboardType)} />
-        <BoolField label="Multiline" value={props.multiline ?? false} onChange={(multiline) => setProps(onChange, node, "multiline", multiline)} />
-        <BoolField label="Secure Text Entry" value={props.secureTextEntry ?? false} onChange={(secureTextEntry) => setProps(onChange, node, "secureTextEntry", secureTextEntry)} />
+        <BoolField label="Multiline" value={props.multiline ?? false} expressionFields={expressionFields} onChange={(multiline) => setProps(onChange, node, "multiline", multiline)} />
+        <BoolField label="Secure Text Entry" value={props.secureTextEntry ?? false} expressionFields={expressionFields} onChange={(secureTextEntry) => setProps(onChange, node, "secureTextEntry", secureTextEntry)} />
       </>
     );
   }
   if (node.controlType === "dropdown" || node.controlType === "multiselect") {
+    const optionsValue = isExpression(props.options)
+      ? props.options
+      : valueToOptionsText((Array.isArray(props.options) ? props.options : []) as Array<{ label: string; value: string }>);
     return (
       <>
         <SectionTitle title="Select Control" />
-        <BoolField label="Searchable" value={props.searchable ?? false} onChange={(searchable) => setProps(onChange, node, "searchable", searchable)} />
-        <BoolField label="Clearable" value={props.clearable ?? false} onChange={(clearable) => setProps(onChange, node, "clearable", clearable)} />
-        <TextAreaField label="Options" value={valueToOptionsText((props.options ?? []) as Array<{ label: string; value: string }>)} onChange={(text) => setProps(onChange, node, "options", optionsTextToValue(text))} />
+        <BoolField label="Searchable" value={props.searchable ?? false} expressionFields={expressionFields} onChange={(searchable) => setProps(onChange, node, "searchable", searchable)} />
+        <BoolField label="Clearable" value={props.clearable ?? false} expressionFields={expressionFields} onChange={(clearable) => setProps(onChange, node, "clearable", clearable)} />
+        <TextAreaField
+          label="Options"
+          value={optionsValue}
+          enableExpressions
+          expressionFields={expressionFields}
+          onChange={(text) => setProps(onChange, node, "options", text.trim().startsWith("=") ? text.trim() : optionsTextToValue(text))}
+        />
       </>
     );
   }
@@ -227,9 +249,9 @@ function ControlSpecificFields({ node, props, onChange }: { node: any; props: Re
       <>
         <SectionTitle title="Signature Control" />
         <SelectField label="Image Type" value={props.imageType ?? "png"} options={["png", "jpg"]} onChange={(imageType) => setProps(onChange, node, "imageType", imageType)} />
-        <NumberField label="Pen Width" value={props.penWidth} onChange={(penWidth) => setProps(onChange, node, "penWidth", penWidth)} />
-        <NumberField label="Height" value={props.height} onChange={(height) => setProps(onChange, node, "height", height)} />
-        <TextField label="Pen Color" value={props.penColor ?? ""} onChange={(penColor) => setProps(onChange, node, "penColor", penColor)} />
+        <NumberField label="Pen Width" value={props.penWidth} expressionFields={expressionFields} onChange={(penWidth) => setProps(onChange, node, "penWidth", penWidth)} />
+        <NumberField label="Height" value={props.height} expressionFields={expressionFields} onChange={(height) => setProps(onChange, node, "height", height)} />
+        <TextField label="Pen Color" value={props.penColor ?? ""} enableExpressions expressionFields={expressionFields} onChange={(penColor) => setProps(onChange, node, "penColor", penColor)} />
       </>
     );
   }
@@ -237,11 +259,11 @@ function ControlSpecificFields({ node, props, onChange }: { node: any; props: Re
     return (
       <>
         <SectionTitle title="Image Control" />
-        <TextField label="Button Label" value={props.buttonLabel ?? ""} onChange={(buttonLabel) => setProps(onChange, node, "buttonLabel", buttonLabel)} />
-        <BoolField label="Allow Camera" value={props.allowCamera ?? true} defaultValue={true} onChange={(allowCamera) => setProps(onChange, node, "allowCamera", allowCamera)} />
-        <BoolField label="Allow Gallery" value={props.allowGallery ?? true} defaultValue={true} onChange={(allowGallery) => setProps(onChange, node, "allowGallery", allowGallery)} />
-        <BoolField label="Allow Editing" value={props.allowsEditing ?? false} onChange={(allowsEditing) => setProps(onChange, node, "allowsEditing", allowsEditing)} />
-        <NumberField label="Quality (0-1)" value={props.quality} onChange={(quality) => setProps(onChange, node, "quality", quality)} />
+        <TextField label="Button Label" value={props.buttonLabel ?? ""} enableExpressions expressionFields={expressionFields} onChange={(buttonLabel) => setProps(onChange, node, "buttonLabel", buttonLabel)} />
+        <BoolField label="Allow Camera" value={props.allowCamera ?? true} defaultValue={true} expressionFields={expressionFields} onChange={(allowCamera) => setProps(onChange, node, "allowCamera", allowCamera)} />
+        <BoolField label="Allow Gallery" value={props.allowGallery ?? true} defaultValue={true} expressionFields={expressionFields} onChange={(allowGallery) => setProps(onChange, node, "allowGallery", allowGallery)} />
+        <BoolField label="Allow Editing" value={props.allowsEditing ?? false} expressionFields={expressionFields} onChange={(allowsEditing) => setProps(onChange, node, "allowsEditing", allowsEditing)} />
+        <NumberField label="Quality (0-1)" value={props.quality} expressionFields={expressionFields} onChange={(quality) => setProps(onChange, node, "quality", quality)} />
       </>
     );
   }
@@ -249,7 +271,7 @@ function ControlSpecificFields({ node, props, onChange }: { node: any; props: Re
     return (
       <>
         <SectionTitle title="File Control" />
-        <BoolField label="Multiple" value={props.multiple ?? false} onChange={(multiple) => setProps(onChange, node, "multiple", multiple)} />
+        <BoolField label="Multiple" value={props.multiple ?? false} expressionFields={expressionFields} onChange={(multiple) => setProps(onChange, node, "multiple", multiple)} />
         <TextAreaField label="Allowed MIME Types" value={(props.allowedMimeTypes ?? []).join("\n")} onChange={(text) => setProps(onChange, node, "allowedMimeTypes", text.split("\n").map((v) => v.trim()).filter(Boolean))} />
       </>
     );
@@ -284,7 +306,19 @@ function isExpression(value: unknown): value is string {
   return typeof value === "string" && value.startsWith("=");
 }
 
-function BoolField({ label, value, defaultValue = false, onChange }: { label: string; value: ExpressionCapableBool; defaultValue?: boolean; onChange: (v: boolean | string) => void }) {
+function BoolField({
+  label,
+  value,
+  defaultValue = false,
+  expressionFields = [],
+  onChange,
+}: {
+  label: string;
+  value: ExpressionCapableBool;
+  defaultValue?: boolean;
+  expressionFields?: ExpressionFieldInfo[];
+  onChange: (v: boolean | string) => void;
+}) {
   const expression = isExpression(value) ? value : "";
   const checked = typeof value === "boolean" ? value : defaultValue;
   return (
@@ -293,13 +327,14 @@ function BoolField({ label, value, defaultValue = false, onChange }: { label: st
         <input type="checkbox" checked={checked} disabled={!!expression} onChange={(e) => onChange(e.target.checked)} />
         <span>{label}</span>
       </label>
-      <input
-        style={{ ...input, marginTop: 6 }}
+      <ExpressionInput
+        style={{ marginTop: 6 }}
         value={expression}
         placeholder="=formula"
-        onChange={(e) => {
-          const next = e.target.value.trim();
-          onChange(next.startsWith("=") ? next : checked);
+        expressionFields={expressionFields}
+        onChange={(next) => {
+          const trimmed = next.trim();
+          onChange(trimmed.startsWith("=") ? trimmed : checked);
         }}
       />
       <FormulaHint value={expression} />
@@ -307,38 +342,81 @@ function BoolField({ label, value, defaultValue = false, onChange }: { label: st
   );
 }
 
-function TextField({ label, value, onChange }: { label: string; value: string | number | undefined; onChange: (value: string) => void }) {
+function TextField({
+  label,
+  value,
+  enableExpressions = false,
+  expressionFields = [],
+  onChange,
+}: {
+  label: string;
+  value: string | number | undefined;
+  enableExpressions?: boolean;
+  expressionFields?: ExpressionFieldInfo[];
+  onChange: (value: string) => void;
+}) {
   const textValue = value ?? "";
   return (
     <label style={labelStyle}>
       {label}
-      <input style={input} value={textValue} onChange={(e) => onChange(e.target.value)} />
-      <FormulaHint value={typeof textValue === "string" ? textValue : ""} />
+      {enableExpressions ? (
+        <ExpressionInput value={textValue} expressionFields={expressionFields} onChange={onChange} />
+      ) : (
+        <input style={input} value={textValue} onChange={(e) => onChange(e.target.value)} />
+      )}
+      {enableExpressions ? <FormulaHint value={typeof textValue === "string" ? textValue : ""} /> : null}
     </label>
   );
 }
 
-function TextAreaField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+function TextAreaField({
+  label,
+  value,
+  enableExpressions = false,
+  expressionFields = [],
+  onChange,
+}: {
+  label: string;
+  value: string;
+  enableExpressions?: boolean;
+  expressionFields?: ExpressionFieldInfo[];
+  onChange: (value: string) => void;
+}) {
   return (
     <label style={labelStyle}>
       {label}
-      <textarea style={{ ...input, height: 110 }} value={value} onChange={(e) => onChange(e.target.value)} />
+      {enableExpressions ? (
+        <ExpressionInput value={value} multiline rows={5} expressionFields={expressionFields} onChange={onChange} />
+      ) : (
+        <textarea style={{ ...input, height: 110 }} value={value} onChange={(e) => onChange(e.target.value)} />
+      )}
+      {enableExpressions ? <FormulaHint value={value} /> : null}
     </label>
   );
 }
 
-function NumberField({ label, value, onChange }: { label: string; value: ExpressionCapableNumber; onChange: (value: number | string | undefined) => void }) {
+function NumberField({
+  label,
+  value,
+  expressionFields = [],
+  onChange,
+}: {
+  label: string;
+  value: ExpressionCapableNumber;
+  expressionFields?: ExpressionFieldInfo[];
+  onChange: (value: number | string | undefined) => void;
+}) {
   const expression = isExpression(value) ? value : "";
   return (
     <label style={labelStyle}>
       {label}
-      <input
-        style={input}
-        type={expression ? "text" : "number"}
+      <ExpressionInput
+        inputType={expression ? "text" : "number"}
         value={value ?? ""}
-        onChange={(e) => {
-          const next = e.target.value.trim();
-          onChange(next.startsWith("=") ? next : numberOrUndefined(next));
+        expressionFields={expressionFields}
+        onChange={(next) => {
+          const trimmed = next.trim();
+          onChange(trimmed.startsWith("=") ? trimmed : numberOrUndefined(trimmed));
         }}
       />
       <FormulaHint value={expression} />

@@ -6,6 +6,7 @@ import type { ControlNode, FormDefinition, LayoutNode, Node } from "@transform/c
 import { formHasExpressions, validateFormExpressions } from "@transform/contracts/expressions";
 import { Toolbox, type ToolboxItem } from "./Toolbox";
 import { CanvasTree } from "./CanvasTree";
+import type { ExpressionFieldInfo } from "./ExpressionInput";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { SubmitActionsPanel } from "./SubmitActionsPanel";
 import { useDesignerStore } from "./designerStore";
@@ -66,6 +67,7 @@ export function FormDesigner({
     if (!schema || !selectedId) return ["root"];
     return getNodePath(schema.root, selectedId) ?? ["root"];
   }, [schema, selectedId]);
+  const expressionFields = useMemo(() => (schema ? collectExpressionFields(schema.root) : []), [schema]);
 
   const saveDraft = useSaveDraft(appCode, formKey);
   const publish = usePublish(appCode, formKey);
@@ -207,7 +209,7 @@ export function FormDesigner({
         </div>
 
         <div style={stickySidePanel}>
-          <PropertiesPanel node={selectedNode} onChange={patchSelected} onClose={() => select(null)} />
+          <PropertiesPanel node={selectedNode} expressionFields={expressionFields} onChange={patchSelected} onClose={() => select(null)} />
         </div>
       </div>
 
@@ -263,6 +265,30 @@ function withExpressionSchemaVersion(schema: FormDefinition): FormDefinition {
   return formHasExpressions(schema) && schema.schemaVersion !== "1.1"
     ? { ...schema, schemaVersion: "1.1" }
     : schema;
+}
+
+function collectExpressionFields(root: LayoutNode): ExpressionFieldInfo[] {
+  const fields: ExpressionFieldInfo[] = [];
+  const seen = new Set<string>();
+
+  function walk(node: Node) {
+    if (node.type === "control") {
+      if (node.key && !seen.has(node.key)) {
+        seen.add(node.key);
+        fields.push({
+          key: node.key,
+          label: node.label,
+          controlType: node.controlType,
+        });
+      }
+      return;
+    }
+
+    node.children.forEach(walk);
+  }
+
+  walk(root);
+  return fields;
 }
 
 function getNodePath(root: LayoutNode, selectedId: string): string[] | null {
