@@ -42,6 +42,7 @@ export function FormDesigner({
   const select = useDesignerStore((s) => s.select);
   const updateNode = useDesignerStore((s) => s.updateNode);
   const removeNode = useDesignerStore((s) => s.removeNode);
+  const moveNode = useDesignerStore((s) => s.moveNode);
   const duplicateNode = useDesignerStore((s) => s.duplicateNode);
   const addLayout = useDesignerStore((s) => s.addLayout);
   const addControl = useDesignerStore((s) => s.addControl);
@@ -88,6 +89,13 @@ export function FormDesigner({
     if (!schema) return;
     if (item.kind === "layout") addLayout(parentLayoutId, item.layoutType, insertIndex);
     else addControl(parentLayoutId, item.controlType, insertIndex);
+    setStatus("");
+  }
+
+  function moveCanvasNode(nodeId: string, parentLayoutId: string, insertIndex: number) {
+    if (!schema) return;
+    moveNode(nodeId, parentLayoutId, insertIndex);
+    select(nodeId);
     setStatus("");
   }
 
@@ -211,15 +219,16 @@ export function FormDesigner({
     <div style={workspace}>
       <div style={topRow}>
         <div>
-          <h1 style={title}>Form Designer</h1>
-          <div style={metaLine}>
-            <span>App: <b>{appCode}</b></span>
-            <span style={metaDivider}>|</span>
-            <span>Form Key: <b>{formKey}</b></span>
+          <div style={titleRow}>
+            <h1 style={title}>Form Designer</h1>
             <span style={draftPill}>Draft (v0)</span>
-            {dirty ? <span style={dirtyText}>Unsaved changes</span> : null}
-            {status ? <span style={statusText}>{status}</span> : null}
           </div>
+          {dirty || status ? (
+            <div style={metaLine}>
+              {dirty ? <span style={dirtyText}>Unsaved changes</span> : null}
+              {status ? <span style={statusText}>{status}</span> : null}
+            </div>
+          ) : null}
         </div>
 
         <div style={toolbar}>
@@ -269,6 +278,7 @@ export function FormDesigner({
               setStatus("");
             }}
             onDropItem={insertFromToolbox}
+            onMoveNode={moveCanvasNode}
           />
         </div>
 
@@ -520,8 +530,14 @@ const title: React.CSSProperties = {
   color: "#101828",
 };
 
+const titleRow: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 12,
+};
+
 const metaLine: React.CSSProperties = {
-  marginTop: 12,
+  marginTop: 10,
   display: "flex",
   alignItems: "center",
   gap: 12,
@@ -530,7 +546,6 @@ const metaLine: React.CSSProperties = {
   fontSize: 18,
 };
 
-const metaDivider: React.CSSProperties = { color: "#98a2b3" };
 const draftPill: React.CSSProperties = {
   padding: "7px 16px",
   borderRadius: 999,
@@ -570,7 +585,6 @@ const splitWrap: React.CSSProperties = {
   position: "relative",
   display: "flex",
   alignItems: "stretch",
-  marginLeft: 12,
   height: 64,
 };
 
@@ -587,7 +601,7 @@ const saveMainBtn: React.CSSProperties = {
 };
 
 const saveChevronBtn: React.CSSProperties = {
-  width: 58,
+  width: 44,
   border: "1px solid #132a63",
   borderRadius: "0 8px 8px 0",
   background: "#071f5c",

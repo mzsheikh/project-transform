@@ -140,7 +140,6 @@ export function PropertiesPanel({
           <>
             {node.controlType === "button" ? (
               <>
-                <div style={emptyPanel}>Buttons do not collect submission data.</div>
                 <ButtonActionsField
                   buttonKey={node.key}
                   actions={Array.isArray(props.actions) ? props.actions : []}

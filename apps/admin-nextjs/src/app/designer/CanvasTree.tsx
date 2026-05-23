@@ -7,16 +7,33 @@ import type { ToolboxItem } from "./Toolbox";
 import { isLayout } from "./types";
 
 const DRAG_DATA_TYPE = "application/x-form-designer-item";
+const NODE_DRAG_DATA_TYPE = "application/x-form-designer-node";
 
-function parseToolboxItem(event: DragEvent): ToolboxItem | null {
+type CanvasDragData =
+  | { kind: "toolbox"; item: ToolboxItem }
+  | { kind: "node"; nodeId: string };
+
+function parseCanvasDragData(event: DragEvent): CanvasDragData | null {
+  const nodeRaw = event.dataTransfer.getData(NODE_DRAG_DATA_TYPE);
+  if (nodeRaw) {
+    try {
+      const parsed = JSON.parse(nodeRaw);
+      if (parsed && typeof parsed === "object" && typeof parsed.nodeId === "string") {
+        return { kind: "node", nodeId: parsed.nodeId };
+      }
+    } catch {
+      return null;
+    }
+  }
+
   const raw = event.dataTransfer.getData(DRAG_DATA_TYPE) || event.dataTransfer.getData("text/plain");
   if (!raw) return null;
 
   try {
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object") return null;
-    if (parsed.kind === "layout" && typeof parsed.layoutType === "string") return parsed as ToolboxItem;
-    if (parsed.kind === "control" && typeof parsed.controlType === "string") return parsed as ToolboxItem;
+    if (parsed.kind === "layout" && typeof parsed.layoutType === "string") return { kind: "toolbox", item: parsed as ToolboxItem };
+    if (parsed.kind === "control" && typeof parsed.controlType === "string") return { kind: "toolbox", item: parsed as ToolboxItem };
     return null;
   } catch {
     return null;
@@ -31,6 +48,7 @@ export function CanvasTree({
   onDelete,
   onDuplicate,
   onDropItem,
+  onMoveNode,
 }: {
   root: LayoutNode;
   selectedId: string | null;
@@ -39,6 +57,7 @@ export function CanvasTree({
   onDelete: (id: string) => void;
   onDuplicate: (id: string) => void;
   onDropItem: (item: ToolboxItem, parentLayoutId: string, insertIndex: number) => void;
+  onMoveNode: (nodeId: string, parentLayoutId: string, insertIndex: number) => void;
 }) {
   return (
     <section style={panel}>
@@ -53,6 +72,7 @@ export function CanvasTree({
             onDelete={onDelete}
             onDuplicate={onDuplicate}
             onDropItem={onDropItem}
+            onMoveNode={onMoveNode}
           />
         </div>
       </div>
@@ -64,11 +84,13 @@ function DropZone({
   parentLayoutId,
   insertIndex,
   onDropItem,
+  onMoveNode,
   empty = false,
 }: {
   parentLayoutId: string;
   insertIndex: number;
   onDropItem: (item: ToolboxItem, parentLayoutId: string, insertIndex: number) => void;
+  onMoveNode: (nodeId: string, parentLayoutId: string, insertIndex: number) => void;
   empty?: boolean;
 }) {
   const [active, setActive] = useState(false);
@@ -82,14 +104,15 @@ function DropZone({
       onDragLeave={() => setActive(false)}
       onDragOver={(event) => {
         event.preventDefault();
-        event.dataTransfer.dropEffect = "copy";
+        event.dataTransfer.dropEffect = event.dataTransfer.types.includes(NODE_DRAG_DATA_TYPE) ? "move" : "copy";
         if (!active) setActive(true);
       }}
       onDrop={(event) => {
         event.preventDefault();
         setActive(false);
-        const item = parseToolboxItem(event);
-        if (item) onDropItem(item, parentLayoutId, insertIndex);
+        const data = parseCanvasDragData(event);
+        if (data?.kind === "toolbox") onDropItem(data.item, parentLayoutId, insertIndex);
+        if (data?.kind === "node") onMoveNode(data.nodeId, parentLayoutId, insertIndex);
       }}
       style={{
         ...dropZone,
@@ -108,6 +131,7 @@ function TreeNode({
   onDelete,
   onDuplicate,
   onDropItem,
+  onMoveNode,
 }: {
   node: Node;
   depth: number;
@@ -116,6 +140,7 @@ function TreeNode({
   onDelete: (id: string) => void;
   onDuplicate: (id: string) => void;
   onDropItem: (item: ToolboxItem, parentLayoutId: string, insertIndex: number) => void;
+  onMoveNode: (nodeId: string, parentLayoutId: string, insertIndex: number) => void;
 }) {
   const selected = node.id === selectedId;
   const [collapsed, setCollapsed] = useState(false);
@@ -134,7 +159,7 @@ function TreeNode({
         >
           <div style={layoutHeader}>
             <div style={nodeTitleWrap}>
-              <GripIcon />
+              {canDelete ? <DragHandle nodeId={node.id} onSelect={onSelect} /> : <GripIcon />}
               <span style={nodeTitle}>
                 {node.layoutType === "repeater"
                   ? `layout: repeat section (${node.key ?? node.id})`
@@ -158,7 +183,7 @@ function TreeNode({
             <div style={layoutBody}>
               {node.children.map((child, index) => (
                 <div key={child.id}>
-                  <DropZone parentLayoutId={node.id} insertIndex={index} onDropItem={onDropItem} />
+                  <DropZone parentLayoutId={node.id} insertIndex={index} onDropItem={onDropItem} onMoveNode={onMoveNode} />
                   <TreeNode
                     node={child}
                     depth={depth + 1}
@@ -167,10 +192,11 @@ function TreeNode({
                     onDelete={onDelete}
                     onDuplicate={onDuplicate}
                     onDropItem={onDropItem}
+                    onMoveNode={onMoveNode}
                   />
                 </div>
               ))}
-              <DropZone parentLayoutId={node.id} insertIndex={node.children.length} onDropItem={onDropItem} empty={node.children.length === 0} />
+              <DropZone parentLayoutId={node.id} insertIndex={node.children.length} onDropItem={onDropItem} onMoveNode={onMoveNode} empty={node.children.length === 0} />
               {node.children.length === 0 ? <EmptyState /> : null}
             </div>
           ) : null}
@@ -181,7 +207,14 @@ function TreeNode({
 
   return (
     <div
-      onClick={() => onSelect(node.id)}
+      onClick={(event) => {
+        event.stopPropagation();
+        onSelect(node.id);
+      }}
+      onMouseDown={(event) => {
+        event.stopPropagation();
+        onSelect(node.id);
+      }}
       style={{
         ...controlCard,
         ...(selected ? selectedControlCard : null),
@@ -189,6 +222,7 @@ function TreeNode({
       }}
     >
       <div style={controlContent}>
+        <DragHandle nodeId={node.id} onSelect={onSelect} />
         <span style={controlIconBox}>{controlIcon(node.controlType)}</span>
         <span style={controlTitle}>control: {node.controlType} ({node.key})</span>
       </div>
@@ -204,6 +238,28 @@ function TreeNode({
         </IconButton>
       </div>
     </div>
+  );
+}
+
+function DragHandle({ nodeId, onSelect }: { nodeId: string; onSelect: (id: string) => void }) {
+  return (
+    <span
+      draggable
+      role="button"
+      aria-label="Drag control"
+      title="Drag to move"
+      onClick={(event) => event.stopPropagation()}
+      onDragStart={(event) => {
+        event.stopPropagation();
+        onSelect(nodeId);
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData(NODE_DRAG_DATA_TYPE, JSON.stringify({ nodeId }));
+        event.dataTransfer.setData("text/plain", JSON.stringify({ nodeId }));
+      }}
+      style={dragHandle}
+    >
+      <GripIcon />
+    </span>
   );
 }
 
@@ -305,6 +361,18 @@ const nodeTitleWrap: React.CSSProperties = {
   gap: 12,
 };
 
+const dragHandle: React.CSSProperties = {
+  width: 28,
+  height: 28,
+  borderRadius: 7,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  color: "#667085",
+  cursor: "grab",
+  userSelect: "none",
+};
+
 const nodeTitle: React.CSSProperties = {
   fontSize: 17,
   fontWeight: 800,
@@ -323,7 +391,9 @@ const layoutBody: React.CSSProperties = {
 
 const controlCard: React.CSSProperties = {
   minHeight: 76,
-  border: "1px solid #dfe6f0",
+  borderWidth: 1,
+  borderStyle: "solid",
+  borderColor: "#dfe6f0",
   borderRadius: 8,
   background: "#fff",
   display: "flex",
@@ -337,6 +407,7 @@ const controlCard: React.CSSProperties = {
 
 const selectedControlCard: React.CSSProperties = {
   borderColor: "#a8c7ff",
+  boxShadow: "0 0 0 4px rgba(47, 111, 237, 0.06)",
 };
 
 const controlContent: React.CSSProperties = {

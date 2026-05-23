@@ -91,6 +91,28 @@ function insertChildToLayout(nodes: Node[], layoutId: string, child: Node, inser
   });
 }
 
+function insertNodeIntoLayout(parent: LayoutNode, layoutId: string, child: Node, insertIndex: number): LayoutNode {
+  if (parent.id === layoutId) {
+    const children = [...parent.children];
+    const idx = Math.max(0, Math.min(insertIndex, children.length));
+    children.splice(idx, 0, child);
+    return { ...parent, children };
+  }
+
+  return {
+    ...parent,
+    children: parent.children.map((node) => (
+      node.type === "layout" ? insertNodeIntoLayout(node, layoutId, child, insertIndex) : node
+    )),
+  };
+}
+
+function containsNode(node: Node, id: string): boolean {
+  if (node.id === id) return true;
+  if (node.type === "control") return false;
+  return node.children.some((child) => containsNode(child, id));
+}
+
 function uid(prefix = "n") {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
 }
@@ -196,6 +218,7 @@ export type DesignerState = {
 
   updateNode: (id: string, patch: Partial<LayoutNode> | Partial<ControlNode>) => void;
   removeNode: (id: string) => void;
+  moveNode: (id: string, parentLayoutId: string, insertIndex: number) => void;
   duplicateNode: (id: string) => void;
   addLayout: (
     parentLayoutId: string,
@@ -300,6 +323,36 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
       history: pushHistory(cur, state.history),
       dirty: true,
       selectedId: state.selectedId === id ? null : state.selectedId,
+    }));
+  },
+
+  moveNode: (id, parentLayoutId, insertIndex) => {
+    const cur = get().schema;
+    if (!cur || id === cur.root.id) return;
+
+    const found = findNodeWithParent(cur.root, id);
+    if (!found) return;
+    if (found.node.type === "layout" && containsNode(found.node, parentLayoutId)) return;
+
+    const adjustedIndex =
+      found.parent.id === parentLayoutId && found.index < insertIndex
+        ? insertIndex - 1
+        : insertIndex;
+
+    const withoutMoved: FormDefinition = {
+      ...cur,
+      root: {
+        ...cur.root,
+        children: removeNodeDeep(cur.root.children, id),
+      },
+    };
+    const nextRoot = insertNodeIntoLayout(withoutMoved.root, parentLayoutId, found.node, adjustedIndex);
+
+    set((state) => ({
+      schema: { ...cur, root: nextRoot },
+      history: pushHistory(cur, state.history),
+      dirty: true,
+      selectedId: id,
     }));
   },
 

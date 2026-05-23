@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useLogout, useMe } from "../lib/queries";
 
@@ -58,15 +59,15 @@ export function AppHeader() {
       </header>
       {showBreadcrumb && appCode ? (
         <nav style={breadcrumb} aria-label="Breadcrumb">
-          <span>Apps</span>
+          <Link href="/apps" style={breadcrumbLink}>Apps</Link>
           <ChevronText />
-          <span>{appCode}</span>
+          <Link href={`/apps/${encodeURIComponent(appCode)}`} style={breadcrumbLink}>{appCode}</Link>
           {formKey ? (
             <>
               <ChevronText />
-              <span>Forms</span>
+              <Link href={`/apps/${encodeURIComponent(appCode)}`} style={breadcrumbLink}>Forms</Link>
               <ChevronText />
-              <span>{formKey}</span>
+              <Link href={`/apps/${encodeURIComponent(appCode)}/forms/${encodeURIComponent(formKey)}/edit`} style={breadcrumbLink}>{formKey}</Link>
               <ChevronText />
               <b>Edit</b>
             </>
@@ -208,6 +209,11 @@ const breadcrumb: React.CSSProperties = {
   color: "#2f3a4a",
   fontSize: 15,
   fontWeight: 600,
+};
+
+const breadcrumbLink: React.CSSProperties = {
+  color: "inherit",
+  textDecoration: "none",
 };
 
 const icon: React.CSSProperties = { width: 20, height: 20, display: "block" };
