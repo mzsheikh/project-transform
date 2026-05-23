@@ -26,4 +26,5 @@ Commands:
 - node prisma/seed.ts
 - npm run prisma:generate
 - npx prisma migrate dev -n add_admin_users
+- run migration: npx prisma migrate dev --schema=prisma/schema.prisma
 - node -e "require('argon2').hash('Admin123!').then(h => console.log(h))"

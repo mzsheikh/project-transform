@@ -50,13 +50,17 @@ export function PropertiesPanel({
   onChange,
   onClose,
   expressionFields = [],
-  onConfigureSubmitActions,
+  onConfigureButtonAction,
+  onDeleteButtonActionConfig,
+  onReorderButtonActions,
 }: {
   node: Node | null;
   onChange: (patch: Partial<any>) => void;
   onClose?: () => void;
   expressionFields?: ExpressionFieldInfo[];
-  onConfigureSubmitActions?: (triggerKey: string) => void;
+  onConfigureButtonAction?: (buttonKey: string, actionId: string) => void;
+  onDeleteButtonActionConfig?: (buttonKey: string, actionId: string) => void;
+  onReorderButtonActions?: (buttonKey: string, actions: ButtonAction[]) => void;
 }) {
   const [tab, setTab] = useState<Tab>("general");
   const [visibilityOpen, setVisibilityOpen] = useState(false);
@@ -127,7 +131,6 @@ export function PropertiesPanel({
                 props={props}
                 expressionFields={expressionFields}
                 onChange={onChange}
-                onConfigureSubmitActions={onConfigureSubmitActions}
               />
             )}
           </>
@@ -135,7 +138,20 @@ export function PropertiesPanel({
 
         {tab === "validation" ? (
           <>
-            {node.controlType === "button" ? <div style={emptyPanel}>Buttons do not collect submission data.</div> : null}
+            {node.controlType === "button" ? (
+              <>
+                <div style={emptyPanel}>Buttons do not collect submission data.</div>
+                <ButtonActionsField
+                  buttonKey={node.key}
+                  actions={Array.isArray(props.actions) ? props.actions : []}
+                  expressionFields={expressionFields}
+                  onChange={(actions) => setProps(onChange, node, "actions", actions)}
+                  onConfigureAction={onConfigureButtonAction}
+                  onDeleteActionConfig={onDeleteButtonActionConfig}
+                  onReorderActions={onReorderButtonActions}
+                />
+              </>
+            ) : null}
             {node.controlType !== "button" ? (
               <BoolField label="Required" value={node.validation?.required ?? false} expressionFields={expressionFields} onChange={(required) => onChange({ validation: { ...(node.validation ?? {}), required } })} />
             ) : null}
@@ -219,13 +235,11 @@ function ControlSpecificFields({
   props,
   expressionFields,
   onChange,
-  onConfigureSubmitActions,
 }: {
   node: any;
   props: Record<string, any>;
   expressionFields: ExpressionFieldInfo[];
   onChange: (patch: any) => void;
-  onConfigureSubmitActions?: (triggerKey: string) => void;
 }) {
   if (node.controlType === "button") {
     return (
@@ -233,14 +247,6 @@ function ControlSpecificFields({
         <SectionTitle title="Button Control" />
         <TextField label="Text" value={props.text ?? node.label ?? "Button"} enableExpressions expressionFields={expressionFields} onChange={(text) => setProps(onChange, node, "text", text)} />
         <SelectField label="Variant" value={props.variant ?? "primary"} options={["primary", "secondary", "danger"]} onChange={(variant) => setProps(onChange, node, "variant", variant)} />
-        <ButtonActionsField
-          actions={Array.isArray(props.actions) ? props.actions : []}
-          expressionFields={expressionFields}
-          onChange={(actions) => setProps(onChange, node, "actions", actions)}
-        />
-        <button type="button" style={primarySmallButton} onClick={() => onConfigureSubmitActions?.(node.key)}>
-          Configure Submit Actions
-        </button>
       </>
     );
   }
@@ -319,13 +325,21 @@ function ControlSpecificFields({
 }
 
 function ButtonActionsField({
+  buttonKey,
   actions,
   expressionFields,
   onChange,
+  onConfigureAction,
+  onDeleteActionConfig,
+  onReorderActions,
 }: {
+  buttonKey: string;
   actions: ButtonAction[];
   expressionFields: ExpressionFieldInfo[];
   onChange: (actions: ButtonAction[]) => void;
+  onConfigureAction?: (buttonKey: string, actionId: string) => void;
+  onDeleteActionConfig?: (buttonKey: string, actionId: string) => void;
+  onReorderActions?: (buttonKey: string, actions: ButtonAction[]) => void;
 }) {
   function update(index: number, patch: Partial<ButtonAction>) {
     onChange(actions.map((action, i) => (i === index ? ({ ...action, ...patch } as ButtonAction) : action)));
@@ -338,20 +352,20 @@ function ButtonActionsField({
     const [item] = next.splice(index, 1);
     next.splice(target, 0, item);
     onChange(next);
+    onReorderActions?.(buttonKey, next);
   }
 
   function remove(index: number) {
+    const action = actions[index];
     onChange(actions.filter((_, i) => i !== index));
+    if (action && isServerButtonActionType(action.type)) {
+      onDeleteActionConfig?.(buttonKey, action.id);
+    }
   }
 
-  function add(type: ButtonAction["type"]) {
-    const action = type === "submit"
-      ? { id: actionId(), type, clearDraftOnSuccess: true }
-      : { id: actionId(), type };
-    onChange([...actions, action as ButtonAction]);
+  function add() {
+    onChange([...actions, { id: actionId(), type: "save_draft" }]);
   }
-
-  const hasSubmit = actions.some((action) => action.type === "submit");
 
   return (
     <div style={actionEditor}>
@@ -359,17 +373,36 @@ function ButtonActionsField({
       {actions.length === 0 ? <div style={emptyPanel}>Add at least one action before publishing.</div> : null}
       {actions.map((action, index) => (
         <div key={action.id} style={buttonActionCard}>
-          <SelectField
-            label="Action"
-            value={action.type}
-            options={["save_draft", "submit"]}
-            onChange={(type) => {
-              const next = type === "submit"
-                ? { id: action.id, type: "submit", enabled: action.enabled, clearDraftOnSuccess: true }
-                : { id: action.id, type: "save_draft", enabled: action.enabled };
-              update(index, next as Partial<ButtonAction>);
-            }}
-          />
+          <div style={actionRow}>
+            <label style={{ ...labelStyle, flex: 1 }}>
+              Action
+              <select
+                style={input}
+                value={normalizeButtonActionType(action.type)}
+                onChange={(event) => {
+                  const oldType = normalizeButtonActionType(action.type);
+                  const nextType = event.target.value as ButtonAction["type"];
+                  const next = nextType === "save_draft"
+                    ? { id: action.id, type: "save_draft", enabled: action.enabled }
+                    : { id: action.id, type: nextType, enabled: action.enabled, clearDraftOnSuccess: true };
+                  update(index, next as Partial<ButtonAction>);
+                  if (oldType !== nextType && isServerButtonActionType(oldType) && nextType === "save_draft") {
+                    onDeleteActionConfig?.(buttonKey, action.id);
+                  }
+                }}
+              >
+                <option value="save_draft">Save Draft</option>
+                <option value="email_pdf">Email PDF</option>
+                <option value="database">Submit to Database</option>
+                <option value="rest_api">Submit to REST API</option>
+              </select>
+            </label>
+            {isServerButtonActionType(action.type) ? (
+              <IconButton label="Configure action" onClick={() => onConfigureAction?.(buttonKey, action.id)}>
+                <GearIcon />
+              </IconButton>
+            ) : null}
+          </div>
           <BoolField
             label="Enabled"
             value={action.enabled ?? true}
@@ -377,26 +410,31 @@ function ButtonActionsField({
             expressionFields={expressionFields}
             onChange={(enabled) => update(index, { enabled } as Partial<ButtonAction>)}
           />
-          {action.type === "submit" ? (
+          {isServerButtonActionType(action.type) ? (
             <label style={inline}>
               <input
                 type="checkbox"
-                checked={action.clearDraftOnSuccess !== false}
+                checked={(action as Extract<ButtonAction, { type: "email_pdf" | "database" | "rest_api" }>).clearDraftOnSuccess !== false}
                 onChange={(event) => update(index, { clearDraftOnSuccess: event.target.checked } as Partial<ButtonAction>)}
               />
               <span>Clear draft on success</span>
             </label>
           ) : null}
           <div style={rowActions}>
-            <button type="button" style={smallButton} onClick={() => move(index, -1)} disabled={index === 0}>Move up</button>
-            <button type="button" style={smallButton} onClick={() => move(index, 1)} disabled={index === actions.length - 1}>Move down</button>
-            <button type="button" style={dangerButton} onClick={() => remove(index)}>Remove</button>
+            <IconButton label="Move action up" onClick={() => move(index, -1)} disabled={index === 0}>
+              <ArrowUpIcon />
+            </IconButton>
+            <IconButton label="Move action down" onClick={() => move(index, 1)} disabled={index === actions.length - 1}>
+              <ArrowDownIcon />
+            </IconButton>
+            <IconButton label="Delete action" danger onClick={() => remove(index)}>
+              <TrashIcon />
+            </IconButton>
           </div>
         </div>
       ))}
       <div style={rowActions}>
-        <button type="button" style={smallButton} onClick={() => add("save_draft")}>Add Save Draft</button>
-        <button type="button" style={smallButton} onClick={() => add("submit")} disabled={hasSubmit}>Add Submit</button>
+        <button type="button" style={primarySmallButton} onClick={add}>Add Action</button>
       </div>
     </div>
   );
@@ -404,6 +442,84 @@ function ButtonActionsField({
 
 function actionId() {
   return `action_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function normalizeButtonActionType(type: string): ButtonAction["type"] {
+  return type === "submit" ? "email_pdf" : (type as ButtonAction["type"]);
+}
+
+function isServerButtonActionType(type: string): type is Exclude<ButtonAction["type"], "save_draft"> {
+  return type === "email_pdf" || type === "database" || type === "rest_api";
+}
+
+function IconButton({
+  label,
+  disabled,
+  danger,
+  onClick,
+  children,
+}: {
+  label: string;
+  disabled?: boolean;
+  danger?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      style={{
+        ...iconButton,
+        ...(danger ? dangerIconButton : null),
+        ...(disabled ? disabledIconButton : null),
+      }}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
+
+function ArrowUpIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 19V5" />
+      <path d="m5 12 7-7 7 7" />
+    </svg>
+  );
+}
+
+function ArrowDownIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 5v14" />
+      <path d="m19 12-7 7-7-7" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="m6 6 1 15h10l1-15" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+    </svg>
+  );
+}
+
+function GearIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z" />
+      <path d="M19.4 15a1.8 1.8 0 0 0 .36 1.98l.04.04a2.2 2.2 0 0 1-3.11 3.11l-.04-.04A1.8 1.8 0 0 0 14.67 19a1.8 1.8 0 0 0-1.8 1.5V21a2.2 2.2 0 0 1-4.4 0v-.08A1.8 1.8 0 0 0 6.67 19a1.8 1.8 0 0 0-1.98.36l-.04.04a2.2 2.2 0 0 1-3.11-3.11l.04-.04A1.8 1.8 0 0 0 2 14.27a1.8 1.8 0 0 0-1.5-1.8H.4a2.2 2.2 0 0 1 0-4.4h.08A1.8 1.8 0 0 0 2 6.27a1.8 1.8 0 0 0-.36-1.98l-.04-.04a2.2 2.2 0 0 1 3.11-3.11l.04.04A1.8 1.8 0 0 0 6.73 2a1.8 1.8 0 0 0 1.8-1.5V.4a2.2 2.2 0 0 1 4.4 0v.08A1.8 1.8 0 0 0 14.73 2a1.8 1.8 0 0 0 1.98-.36l.04-.04a2.2 2.2 0 0 1 3.11 3.11l-.04.04A1.8 1.8 0 0 0 19.4 6.73a1.8 1.8 0 0 0 1.5 1.8H21a2.2 2.2 0 0 1 0 4.4h-.08A1.8 1.8 0 0 0 19.4 15Z" />
+    </svg>
+  );
 }
 
 function PanelHeader({ title, hint, onClose }: { title: string; hint: string; onClose?: () => void }) {
@@ -648,10 +764,22 @@ const formulaOk: React.CSSProperties = { color: "#067647", fontSize: 12, fontWei
 const formulaError: React.CSSProperties = { color: "#b42318", fontSize: 12, fontWeight: 700 };
 const actionEditor: React.CSSProperties = { display: "grid", gap: 12 };
 const buttonActionCard: React.CSSProperties = { display: "grid", gap: 10, border: "1px solid #dfe6f0", borderRadius: 8, padding: 12, background: "#f8fafc" };
+const actionRow: React.CSSProperties = { display: "flex", gap: 10, alignItems: "end" };
 const rowActions: React.CSSProperties = { display: "flex", gap: 8, flexWrap: "wrap" };
-const smallButton: React.CSSProperties = { border: "1px solid #d0d5dd", borderRadius: 8, background: "#fff", padding: "8px 10px", fontWeight: 800, cursor: "pointer", color: "#344054" };
-const dangerButton: React.CSSProperties = { ...smallButton, color: "#b42318", border: "1px solid #f0c7c2" };
 const primarySmallButton: React.CSSProperties = { border: 0, borderRadius: 8, background: "#111827", color: "#fff", padding: "10px 12px", fontWeight: 900, cursor: "pointer" };
+const iconButton: React.CSSProperties = {
+  width: 38,
+  height: 38,
+  border: "1px solid #d0d5dd",
+  borderRadius: 8,
+  background: "#fff",
+  color: "#344054",
+  display: "grid",
+  placeItems: "center",
+  cursor: "pointer",
+};
+const dangerIconButton: React.CSSProperties = { color: "#b42318", borderColor: "#f0c7c2" };
+const disabledIconButton: React.CSSProperties = { opacity: 0.45, cursor: "not-allowed" };
 
 const accordionBtn: React.CSSProperties = {
   width: "100%",

@@ -279,7 +279,6 @@ function validateButtonActions(
     }];
   }
 
-  let submitCount = 0;
   let enabledCount = 0;
   actions.forEach((action, index) => {
     if (!isRecord(action)) {
@@ -292,8 +291,12 @@ function validateButtonActions(
     }
 
     if (action.enabled !== false) enabledCount += 1;
-    if (action.type === "submit") submitCount += 1;
-    if (action.type !== "save_draft" && action.type !== "submit") {
+    if (
+      action.type !== "save_draft" &&
+      action.type !== "email_pdf" &&
+      action.type !== "database" &&
+      action.type !== "rest_api"
+    ) {
       issues.push({
         code: "button.invalidActionType",
         path: `${path}.${index}.type`,
@@ -307,14 +310,6 @@ function validateButtonActions(
       code: "button.enabledActionRequired",
       path,
       message: `Button "${key}" must have at least one enabled action.`,
-    });
-  }
-
-  if (submitCount > 1) {
-    issues.push({
-      code: "button.duplicateSubmitAction",
-      path,
-      message: `Button "${key}" can define only one submit action.`,
     });
   }
 

@@ -2,15 +2,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { ControlNode, FormDefinition, LayoutNode, Node } from "@transform/contracts/form-types";
+import { useQueryClient } from "@tanstack/react-query";
+import type { ButtonAction, ControlNode, FormDefinition, LayoutNode, Node } from "@transform/contracts/form-types";
 import { formHasExpressions, validateFormExpressions } from "@transform/contracts/expressions";
 import { Toolbox, type ToolboxItem } from "./Toolbox";
 import { CanvasTree } from "./CanvasTree";
 import type { ExpressionFieldInfo } from "./ExpressionInput";
 import { PropertiesPanel } from "./PropertiesPanel";
-import { SubmitActionsPanel } from "./SubmitActionsPanel";
+import { ButtonActionConfigDialog } from "./SubmitActionsPanel";
 import { useDesignerStore } from "./designerStore";
-import { usePublish, useSaveDraft } from "../../lib/queries";
+import { api } from "../../lib/api";
+import { qk, usePublish, useSaveDraft } from "../../lib/queries";
 
 export function FormDesigner({
   appCode,
@@ -26,9 +28,10 @@ export function FormDesigner({
   const [status, setStatus] = useState<string>("");
   const [toolboxCollapsed, setToolboxCollapsed] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [submitActionsOpen, setSubmitActionsOpen] = useState<{ triggerKey?: string; title?: string } | null>(null);
+  const [buttonActionConfig, setButtonActionConfig] = useState<{ buttonKey: string; actionId: string } | null>(null);
   const [saveMenuOpen, setSaveMenuOpen] = useState(false);
   const [zoom, setZoom] = useState(1);
+  const qc = useQueryClient();
 
   const schema = useDesignerStore((s) => s.schema);
   const selectedId = useDesignerStore((s) => s.selectedId);
@@ -138,6 +141,68 @@ export function FormDesigner({
     }
   }
 
+  const selectedButtonAction = useMemo(() => {
+    if (!schema || !buttonActionConfig) return null;
+    return findButtonAction(schema.root, buttonActionConfig.buttonKey, buttonActionConfig.actionId);
+  }, [schema, buttonActionConfig]);
+
+  async function saveSchemaForActionConfig() {
+    if (!schema) return;
+    const schemaToSave = withExpressionSchemaVersion(schema);
+    setStatus("Saving schema...");
+    await saveDraft.mutateAsync({ schemaJson: schemaToSave });
+    markSaved();
+    setStatus("Schema saved");
+    onSaved?.(schemaToSave);
+  }
+
+  function patchButtonAction(buttonKey: string, actionId: string, patch: Partial<ButtonAction>) {
+    if (!schema) return;
+    const button = findButtonControl(schema.root, buttonKey);
+    if (!button) return;
+    const props = (button.props ?? {}) as Record<string, any>;
+    const actions = Array.isArray(props.actions) ? (props.actions as ButtonAction[]) : [];
+    updateNode(button.id, {
+      props: {
+        ...props,
+        actions: actions.map((action) => action.id === actionId ? ({ ...action, ...patch } as ButtonAction) : action),
+      },
+    });
+  }
+
+  async function deleteButtonActionConfig(buttonKey: string, actionId: string) {
+    try {
+      const rows = await api.listSubmitActions(appCode, formKey);
+      const row = rows.find((item) => item.triggerKey === buttonKey && item.buttonActionId === actionId);
+      if (row) {
+        await api.deleteSubmitAction(appCode, formKey, row.id);
+        await qc.invalidateQueries({ queryKey: qk.submitActions(appCode, formKey) });
+      }
+    } catch (e: any) {
+      setStatus(`Error: ${e.message ?? "failed to delete action config"}`);
+    }
+  }
+
+  async function syncButtonActionSortOrder(buttonKey: string, actions: ButtonAction[]) {
+    const serverActions = actions.filter((action) => isServerButtonActionType(action.type));
+    if (serverActions.length === 0) return;
+    try {
+      const rows = await api.listSubmitActions(appCode, formKey);
+      await Promise.all(serverActions.map((action, index) => {
+        const row = rows.find((item) => item.triggerKey === buttonKey && item.buttonActionId === action.id);
+        if (!row) return Promise.resolve();
+        return api.updateSubmitAction(appCode, formKey, row.id, {
+          sortOrder: index * 10,
+          triggerKey: buttonKey,
+          buttonActionId: action.id,
+        });
+      }));
+      await qc.invalidateQueries({ queryKey: qk.submitActions(appCode, formKey) });
+    } catch (e: any) {
+      setStatus(`Error: ${e.message ?? "failed to reorder action config"}`);
+    }
+  }
+
   if (!schema) {
     return <div style={{ padding: 24, opacity: 0.8 }}>Loading designer...</div>;
   }
@@ -159,7 +224,6 @@ export function FormDesigner({
 
         <div style={toolbar}>
           <ToolbarButton label="Preview" icon={<EyeIcon />} active onClick={() => setPreviewOpen(true)} />
-          <ToolbarButton label="Actions" icon={<ActionIcon />} onClick={() => setSubmitActionsOpen({ title: "All Submit Actions" })} />
           <ToolbarButton label="Undo" icon={<UndoIcon />} disabled={!canUndo} onClick={() => { undo(); setStatus(""); }} />
           <ToolbarButton label="Redo" icon={<RedoIcon />} disabled={!canRedo} onClick={() => { redo(); setStatus(""); }} />
           <div style={splitWrap}>
@@ -214,7 +278,9 @@ export function FormDesigner({
             expressionFields={expressionFields}
             onChange={patchSelected}
             onClose={() => select(null)}
-            onConfigureSubmitActions={(triggerKey) => setSubmitActionsOpen({ triggerKey, title: `Submit Actions: ${triggerKey}` })}
+            onConfigureButtonAction={(buttonKey, actionId) => setButtonActionConfig({ buttonKey, actionId })}
+            onDeleteButtonActionConfig={(buttonKey, actionId) => void deleteButtonActionConfig(buttonKey, actionId)}
+            onReorderButtonActions={(buttonKey, actions) => void syncButtonActionSortOrder(buttonKey, actions)}
           />
         </div>
       </div>
@@ -260,13 +326,16 @@ export function FormDesigner({
         </div>
       ) : null}
 
-      {submitActionsOpen ? (
-        <SubmitActionsPanel
+      {buttonActionConfig && selectedButtonAction ? (
+        <ButtonActionConfigDialog
           appCode={appCode}
           formKey={formKey}
-          triggerKey={submitActionsOpen.triggerKey}
-          title={submitActionsOpen.title}
-          onClose={() => setSubmitActionsOpen(null)}
+          buttonKey={buttonActionConfig.buttonKey}
+          action={selectedButtonAction.action}
+          actionIndex={selectedButtonAction.index}
+          onBeforeSaveSchema={saveSchemaForActionConfig}
+          onPatchAction={(patch) => patchButtonAction(buttonActionConfig.buttonKey, buttonActionConfig.actionId, patch)}
+          onClose={() => setButtonActionConfig(null)}
         />
       ) : null}
     </div>
@@ -285,6 +354,28 @@ function withExpressionSchemaVersion(schema: FormDefinition): FormDefinition {
 function formHasButtonControls(node: Node): boolean {
   if (node.type === "control") return node.controlType === "button";
   return node.children.some(formHasButtonControls);
+}
+
+function findButtonControl(node: Node, buttonKey: string): ControlNode | null {
+  if (node.type === "control") {
+    return node.controlType === "button" && node.key === buttonKey ? node : null;
+  }
+  for (const child of node.children) {
+    const found = findButtonControl(child, buttonKey);
+    if (found) return found;
+  }
+  return null;
+}
+
+function findButtonAction(root: LayoutNode, buttonKey: string, actionId: string): { action: ButtonAction; index: number } | null {
+  const button = findButtonControl(root, buttonKey);
+  const actions = Array.isArray(button?.props?.actions) ? (button.props.actions as ButtonAction[]) : [];
+  const index = actions.findIndex((action) => action.id === actionId);
+  return index >= 0 ? { action: actions[index], index } : null;
+}
+
+function isServerButtonActionType(type: string): type is Exclude<ButtonAction["type"], "save_draft"> {
+  return type === "email_pdf" || type === "database" || type === "rest_api";
 }
 
 function collectExpressionFields(root: LayoutNode): ExpressionFieldInfo[] {
@@ -657,10 +748,6 @@ function UndoIcon() {
 
 function RedoIcon() {
   return <svg viewBox="0 0 24 24" style={iconStyle} aria-hidden><path d="M15 7h5v5" stroke="currentColor" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round" /><path d="M19 12a8 8 0 1 1-2.4-5.7L20 9" stroke="currentColor" strokeWidth="2.2" fill="none" strokeLinecap="round" /></svg>;
-}
-
-function ActionIcon() {
-  return <svg viewBox="0 0 24 24" style={iconStyle} aria-hidden><path d="M5 7h5M14 7h5M5 17h5M14 17h5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /><path d="M10 7c2 0 2 10 4 10" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" /><path d="M14 7c-2 0-2 10-4 10" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" /></svg>;
 }
 
 function ChevronDownIcon() {

@@ -95,6 +95,7 @@ export interface FormSubmitActionDto {
   enabled: boolean;
   sortOrder: number;
   triggerKey?: string | null;
+  buttonActionId?: string | null;
   connectorId?: string | null;
   configJson: SubmitActionConfig;
   createdAt: string;
@@ -107,6 +108,7 @@ export interface FormSubmitActionInput {
   enabled?: boolean;
   sortOrder?: number;
   triggerKey?: string | null;
+  buttonActionId?: string | null;
   connectorId?: string | null;
   configJson: SubmitActionConfig;
 }

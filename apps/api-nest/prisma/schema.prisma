@@ -231,6 +231,7 @@ model FormSubmitAction {
   enabled    Boolean          @default(true)
   sortOrder  Int              @default(0) @map("sort_order")
   triggerKey String?          @map("trigger_key")
+  buttonActionId String?      @map("button_action_id")
   connectorId String?         @map("connector_id") @db.Uuid
   configJson Json             @default("{}") @map("config_json")
 
@@ -246,6 +247,7 @@ model FormSubmitAction {
   @@index([appCode, formKey, formVersion])
   @@index([formId, enabled, sortOrder])
   @@index([formId, triggerKey, enabled, sortOrder])
+  @@index([formId, triggerKey, buttonActionId])
   @@map("form_submit_actions")
 }
 

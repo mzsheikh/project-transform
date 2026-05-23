@@ -21,6 +21,7 @@ export class SubmitActionsService {
     const draft = await this.findDraft(appCode, formKey);
     const connectorId = await this.resolveConnectorId(appCode, dto.type, dto.connectorId, dto.configJson);
     const triggerKey = this.resolveTriggerKey(draft.schemaJson, dto.triggerKey);
+    const buttonActionId = this.resolveButtonActionId(draft.schemaJson, triggerKey, dto.buttonActionId, dto.type);
     const action = await this.prisma.formSubmitAction.create({
       data: {
         appCode,
@@ -32,6 +33,7 @@ export class SubmitActionsService {
         enabled: dto.enabled ?? true,
         sortOrder: dto.sortOrder ?? 0,
         triggerKey,
+        buttonActionId,
         connectorId,
         configJson: dto.configJson as Prisma.InputJsonObject,
       },
@@ -52,6 +54,12 @@ export class SubmitActionsService {
       draft.schemaJson,
       dto.triggerKey === undefined ? existing.triggerKey : dto.triggerKey,
     );
+    const buttonActionId = this.resolveButtonActionId(
+      draft.schemaJson,
+      triggerKey,
+      dto.buttonActionId === undefined ? existing.buttonActionId : dto.buttonActionId,
+      nextType,
+    );
     const connectorId = await this.resolveConnectorId(
       appCode,
       nextType,
@@ -67,6 +75,7 @@ export class SubmitActionsService {
         enabled: dto.enabled,
         sortOrder: dto.sortOrder,
         triggerKey,
+        buttonActionId,
         connectorId,
         configJson: dto.configJson ? (dto.configJson as Prisma.InputJsonObject) : undefined,
       },
@@ -139,6 +148,44 @@ export class SubmitActionsService {
     node.children.forEach((child) => this.collectButtonKeys(child, keys));
   }
 
+  private resolveButtonActionId(
+    schemaJson: Prisma.JsonValue,
+    triggerKey: string | null,
+    buttonActionId: string | null | undefined,
+    type: "email_pdf" | "database" | "rest_api",
+  ) {
+    const normalized = typeof buttonActionId === "string" && buttonActionId.trim()
+      ? buttonActionId.trim()
+      : null;
+    if (!normalized) return null;
+    if (!triggerKey) {
+      throw new BadRequestException("buttonActionId requires a button triggerKey.");
+    }
+
+    const form = schemaJson as unknown as FormDefinition;
+    const button = form?.root ? this.findButtonControl(form.root, triggerKey) : null;
+    const actions = Array.isArray(button?.props?.actions) ? button.props.actions : [];
+    const action = actions.find((item) => item && item.id === normalized);
+    if (!action) {
+      throw new BadRequestException(`buttonActionId "${normalized}" does not match an action on button "${triggerKey}".`);
+    }
+    if (action.type !== type) {
+      throw new BadRequestException(`buttonActionId "${normalized}" is configured as "${action.type}", not "${type}".`);
+    }
+    return normalized;
+  }
+
+  private findButtonControl(node: Node, key: string): Extract<Node, { type: "control" }> | null {
+    if (node.type === "control") {
+      return node.controlType === "button" && node.key === key ? node : null;
+    }
+    for (const child of node.children) {
+      const found = this.findButtonControl(child, key);
+      if (found) return found;
+    }
+    return null;
+  }
+
   private toPublic(action: {
     id: string;
     appCode: string;
@@ -150,6 +197,7 @@ export class SubmitActionsService {
     enabled: boolean;
     sortOrder: number;
     triggerKey?: string | null;
+    buttonActionId?: string | null;
     connectorId: string | null;
     configJson: Prisma.JsonValue;
     createdAt: Date;
@@ -166,6 +214,7 @@ export class SubmitActionsService {
       enabled: action.enabled,
       sortOrder: action.sortOrder,
       triggerKey: action.triggerKey ?? null,
+      buttonActionId: action.buttonActionId ?? null,
       connectorId: action.connectorId,
       configJson: action.configJson,
       createdAt: action.createdAt.toISOString(),

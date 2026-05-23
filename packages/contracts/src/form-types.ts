@@ -1,5 +1,6 @@
 // packages/contracts/src/form-types.ts
 
+import type { SubmitActionType } from "./action-types";
 import type { SubmissionDataValue } from "./submission-types";
 
 export type SchemaVersion = "1.0" | "1.1" | "1.2";
@@ -282,7 +283,7 @@ export interface FileProps extends BaseControlProps {
   allowedMimeTypes?: string[];
 }
 
-export type ButtonActionType = "save_draft" | "submit";
+export type ButtonActionType = "save_draft" | SubmitActionType;
 
 export type ButtonAction =
   | {
@@ -292,7 +293,7 @@ export type ButtonAction =
     }
   | {
       id: string;
-      type: "submit";
+      type: SubmitActionType;
       enabled?: DynamicValue<boolean>;
       clearDraftOnSuccess?: boolean;
     };

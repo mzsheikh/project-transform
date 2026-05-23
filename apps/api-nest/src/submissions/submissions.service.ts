@@ -68,6 +68,7 @@ export class SubmissionsService {
       name: string;
       sortOrder: number;
       triggerKey: string | null;
+      buttonActionId: string | null;
       connectorId: string | null;
       configJson: Prisma.JsonValue;
     }>,
@@ -103,6 +104,7 @@ export class SubmissionsService {
               type: action.type,
               sortOrder: action.sortOrder,
               triggerKey: action.triggerKey,
+              buttonActionId: action.buttonActionId,
               connectorId: action.connectorId,
               configJson: action.configJson,
             } as Prisma.InputJsonObject,

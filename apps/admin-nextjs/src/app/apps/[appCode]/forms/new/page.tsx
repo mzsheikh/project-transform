@@ -15,6 +15,7 @@ function normalizeFormKey(value: string) {
 }
 
 const defaultSubmitButtonKey = "submitButton";
+const defaultEmailPdfButtonActionId = "submit_email_pdf";
 
 const defaultEmailPdfActionConfig = {
   to: ["operations@example.com"],
@@ -58,7 +59,7 @@ function createDefaultSchema(formKey: string, title: string) {
           props: {
             text: "Submit",
             variant: "primary",
-            actions: [{ id: "submit", type: "submit", clearDraftOnSuccess: true }],
+            actions: [{ id: defaultEmailPdfButtonActionId, type: "email_pdf", clearDraftOnSuccess: true }],
           },
         },
       ],
@@ -124,6 +125,7 @@ export default function NewFormPage() {
         enabled: true,
         sortOrder: 0,
         triggerKey: defaultSubmitButtonKey,
+        buttonActionId: defaultEmailPdfButtonActionId,
         connectorId: null,
         configJson: defaultEmailPdfActionConfig,
       });

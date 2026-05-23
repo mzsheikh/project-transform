@@ -116,7 +116,7 @@ export function makeControl(controlType: ControlNode["controlType"]): ControlNod
     base.props = {
       text: "Button",
       variant: "primary",
-      actions: [{ id: uuidLike(), type: "submit", clearDraftOnSuccess: true }],
+      actions: [],
     } satisfies ButtonProps;
   }
 

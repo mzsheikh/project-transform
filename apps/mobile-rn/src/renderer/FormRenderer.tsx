@@ -96,15 +96,20 @@ export function FormRenderer({
 
   async function executeButtonActions(node: ControlNode) {
     const actions = Array.isArray(node.props?.actions) ? (node.props.actions as ButtonAction[]) : [];
+    let submitted = false;
     for (const action of actions) {
       if (!action || action.enabled === false) continue;
+      const actionType = String(action.type);
       if (action.type === "save_draft") {
         await handleSaveDraft();
       }
-      if (action.type === "submit") {
-        const submitted = await handleSubmit({
+      if ((isServerButtonActionType(actionType) || actionType === "submit") && !submitted) {
+        const clearDraftOnSuccess = "clearDraftOnSuccess" in action
+          ? action.clearDraftOnSuccess !== false
+          : true;
+        submitted = await handleSubmit({
           triggerKey: node.key,
-          clearDraftOnSuccess: action.clearDraftOnSuccess !== false,
+          clearDraftOnSuccess,
         });
         if (!submitted) return;
       }
@@ -140,4 +145,8 @@ export function FormRenderer({
 function hasButtonControls(node: Node): boolean {
   if (node.type === "control") return node.controlType === "button";
   return node.children.some(hasButtonControls);
+}
+
+function isServerButtonActionType(type: string) {
+  return type === "email_pdf" || type === "database" || type === "rest_api";
 }

@@ -13,6 +13,7 @@ type ActionSnapshot = {
   type: "email_pdf" | "database" | "rest_api";
   sortOrder: number;
   triggerKey?: string | null;
+  buttonActionId?: string | null;
   connectorId?: string | null;
   configJson: Record<string, unknown>;
 };
@@ -263,6 +264,7 @@ export class SubmissionActionRunnerService implements OnModuleInit, OnModuleDest
       type,
       sortOrder: typeof record.sortOrder === "number" ? record.sortOrder : 0,
       triggerKey: typeof record.triggerKey === "string" ? record.triggerKey : null,
+      buttonActionId: typeof record.buttonActionId === "string" ? record.buttonActionId : null,
       connectorId: typeof record.connectorId === "string" ? record.connectorId : null,
       configJson: this.asRecord(record.configJson as Prisma.JsonValue),
     };

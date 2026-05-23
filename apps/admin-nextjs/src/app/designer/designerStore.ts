@@ -409,7 +409,7 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
       newControl.props = {
         text: "Button",
         variant: "primary",
-        actions: [{ id: uid("action"), type: "submit", clearDraftOnSuccess: true }],
+        actions: [],
       };
     }
 
