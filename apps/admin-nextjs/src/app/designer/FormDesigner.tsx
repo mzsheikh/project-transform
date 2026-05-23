@@ -26,7 +26,7 @@ export function FormDesigner({
   const [status, setStatus] = useState<string>("");
   const [toolboxCollapsed, setToolboxCollapsed] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [submitActionsOpen, setSubmitActionsOpen] = useState(false);
+  const [submitActionsOpen, setSubmitActionsOpen] = useState<{ triggerKey?: string; title?: string } | null>(null);
   const [saveMenuOpen, setSaveMenuOpen] = useState(false);
   const [zoom, setZoom] = useState(1);
 
@@ -159,7 +159,7 @@ export function FormDesigner({
 
         <div style={toolbar}>
           <ToolbarButton label="Preview" icon={<EyeIcon />} active onClick={() => setPreviewOpen(true)} />
-          <ToolbarButton label="Actions" icon={<ActionIcon />} onClick={() => setSubmitActionsOpen(true)} />
+          <ToolbarButton label="Actions" icon={<ActionIcon />} onClick={() => setSubmitActionsOpen({ title: "All Submit Actions" })} />
           <ToolbarButton label="Undo" icon={<UndoIcon />} disabled={!canUndo} onClick={() => { undo(); setStatus(""); }} />
           <ToolbarButton label="Redo" icon={<RedoIcon />} disabled={!canRedo} onClick={() => { redo(); setStatus(""); }} />
           <div style={splitWrap}>
@@ -209,7 +209,13 @@ export function FormDesigner({
         </div>
 
         <div style={stickySidePanel}>
-          <PropertiesPanel node={selectedNode} expressionFields={expressionFields} onChange={patchSelected} onClose={() => select(null)} />
+          <PropertiesPanel
+            node={selectedNode}
+            expressionFields={expressionFields}
+            onChange={patchSelected}
+            onClose={() => select(null)}
+            onConfigureSubmitActions={(triggerKey) => setSubmitActionsOpen({ triggerKey, title: `Submit Actions: ${triggerKey}` })}
+          />
         </div>
       </div>
 
@@ -255,16 +261,30 @@ export function FormDesigner({
       ) : null}
 
       {submitActionsOpen ? (
-        <SubmitActionsPanel appCode={appCode} formKey={formKey} onClose={() => setSubmitActionsOpen(false)} />
+        <SubmitActionsPanel
+          appCode={appCode}
+          formKey={formKey}
+          triggerKey={submitActionsOpen.triggerKey}
+          title={submitActionsOpen.title}
+          onClose={() => setSubmitActionsOpen(null)}
+        />
       ) : null}
     </div>
   );
 }
 
 function withExpressionSchemaVersion(schema: FormDefinition): FormDefinition {
-  return formHasExpressions(schema) && schema.schemaVersion !== "1.1"
+  if (formHasButtonControls(schema.root) && schema.schemaVersion !== "1.2") {
+    return { ...schema, schemaVersion: "1.2" };
+  }
+  return formHasExpressions(schema) && schema.schemaVersion === "1.0"
     ? { ...schema, schemaVersion: "1.1" }
     : schema;
+}
+
+function formHasButtonControls(node: Node): boolean {
+  if (node.type === "control") return node.controlType === "button";
+  return node.children.some(formHasButtonControls);
 }
 
 function collectExpressionFields(root: LayoutNode): ExpressionFieldInfo[] {
@@ -273,7 +293,7 @@ function collectExpressionFields(root: LayoutNode): ExpressionFieldInfo[] {
 
   function walk(node: Node) {
     if (node.type === "control") {
-      if (node.key && !seen.has(node.key)) {
+      if (node.controlType !== "button" && node.key && !seen.has(node.key)) {
         seen.add(node.key);
         fields.push({
           key: node.key,
@@ -361,6 +381,9 @@ function previewControl(node: ControlNode, props: Record<string, any>) {
   }
   if (node.controlType === "file") {
     return <div style={previewInput}>Choose File</div>;
+  }
+  if (node.controlType === "button") {
+    return <button type="button" style={previewButton}>{props.text || node.label || "Button"}</button>;
   }
   return <input style={previewInput} placeholder={props.placeholder ?? ""} type={node.controlType === "number" ? "number" : "text"} readOnly />;
 }
@@ -616,6 +639,7 @@ const previewRow: React.CSSProperties = { display: "grid", gridTemplateColumns: 
 const previewField: React.CSSProperties = { display: "grid", gap: 7, color: "#344054", fontWeight: 700 };
 const previewLabel: React.CSSProperties = { fontSize: 14 };
 const previewInput: React.CSSProperties = { minHeight: 42, border: "1px solid #d0d5dd", borderRadius: 10, padding: "10px 12px", background: "#fff" };
+const previewButton: React.CSSProperties = { minHeight: 42, border: 0, borderRadius: 10, padding: "10px 14px", background: "#111827", color: "#fff", fontWeight: 800, textAlign: "center" };
 const previewEmpty: React.CSSProperties = { border: "1px dashed #d0d5dd", borderRadius: 10, padding: 18, color: "#98a2b3" };
 const previewRepeater: React.CSSProperties = { border: "1px solid #d0d5dd", borderRadius: 12, padding: 14, display: "grid", gap: 12 };
 const previewRepeaterHeader: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 12, color: "#344054" };

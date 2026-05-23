@@ -254,6 +254,7 @@ function controlIcon(type: ControlNode["controlType"]) {
   if (type === "date") return <CalendarIcon />;
   if (type === "dropdown" || type === "multiselect") return <ChevronListIcon />;
   if (type === "file" || type === "image") return <FileIcon />;
+  if (type === "button") return <ButtonIcon />;
   return <span style={{ fontFamily: "serif", fontSize: 25 }}>T</span>;
 }
 
@@ -521,6 +522,15 @@ function FileIcon() {
     <svg viewBox="0 0 20 20" style={iconBase} aria-hidden>
       <path d="M6 3h6l3 3v11H6V3Z" stroke="currentColor" strokeWidth="1.6" fill="none" strokeLinejoin="round" />
       <path d="M12 3v4h4" stroke="currentColor" strokeWidth="1.6" fill="none" />
+    </svg>
+  );
+}
+
+function ButtonIcon() {
+  return (
+    <svg viewBox="0 0 20 20" style={iconBase} aria-hidden>
+      <rect x="3" y="6" width="14" height="8" rx="2.5" stroke="currentColor" strokeWidth="1.6" fill="none" />
+      <path d="M7 10h6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
     </svg>
   );
 }

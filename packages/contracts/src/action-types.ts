@@ -11,7 +11,7 @@ export type RestAuthMode =
   | "oauth2_client_credentials";
 
 export type SubmitActionType = "email_pdf" | "database" | "rest_api";
-export type SubmitActionRunStatus = "pending" | "running" | "success" | "failed";
+export type SubmitActionRunStatus = "pending" | "running" | "success" | "failed" | "skipped";
 
 export interface ConnectorDto {
   id: string;
@@ -94,6 +94,7 @@ export interface FormSubmitActionDto {
   name: string;
   enabled: boolean;
   sortOrder: number;
+  triggerKey?: string | null;
   connectorId?: string | null;
   configJson: SubmitActionConfig;
   createdAt: string;
@@ -105,6 +106,7 @@ export interface FormSubmitActionInput {
   name: string;
   enabled?: boolean;
   sortOrder?: number;
+  triggerKey?: string | null;
   connectorId?: string | null;
   configJson: SubmitActionConfig;
 }

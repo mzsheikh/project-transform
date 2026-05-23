@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Node } from "@transform/contracts/form-types";
+import type { ButtonAction, Node } from "@transform/contracts/form-types";
 import { validateExpressionSyntax } from "@transform/contracts/expressions";
 import { ExpressionInput, type ExpressionFieldInfo } from "./ExpressionInput";
 import { isControl, isLayout } from "./types";
@@ -50,11 +50,13 @@ export function PropertiesPanel({
   onChange,
   onClose,
   expressionFields = [],
+  onConfigureSubmitActions,
 }: {
   node: Node | null;
   onChange: (patch: Partial<any>) => void;
   onClose?: () => void;
   expressionFields?: ExpressionFieldInfo[];
+  onConfigureSubmitActions?: (triggerKey: string) => void;
 }) {
   const [tab, setTab] = useState<Tab>("general");
   const [visibilityOpen, setVisibilityOpen] = useState(false);
@@ -109,19 +111,34 @@ export function PropertiesPanel({
           <>
             <TextField label="Label" value={node.label ?? ""} onChange={(label) => onChange({ label })} />
             <TextField label="Key" value={node.key} onChange={(key) => onChange({ key })} />
-            <BoolField label="Required" value={node.validation?.required ?? false} expressionFields={expressionFields} onChange={(required) => onChange({ validation: { ...(node.validation ?? {}), required } })} />
-            <SectionTitle title="Base Control Props" />
-            <TextField label="Placeholder" value={props.placeholder ?? ""} enableExpressions expressionFields={expressionFields} onChange={(placeholder) => setProps(onChange, node, "placeholder", placeholder)} />
-            <TextField label="Help Text" value={props.helpText ?? ""} enableExpressions expressionFields={expressionFields} onChange={(helpText) => setProps(onChange, node, "helpText", helpText)} />
-            <TextField label="Default Value" value={props.defaultValue ?? ""} enableExpressions expressionFields={expressionFields} onChange={(defaultValue) => setProps(onChange, node, "defaultValue", defaultValue)} />
-            <TextField label="Value" value={props.value ?? ""} enableExpressions expressionFields={expressionFields} onChange={(value) => setProps(onChange, node, "value", value)} />
-            <TextField label="Error Message" value={props.errorMessage ?? ""} enableExpressions expressionFields={expressionFields} onChange={(errorMessage) => setProps(onChange, node, "errorMessage", errorMessage)} />
+            {node.controlType !== "button" ? (
+              <>
+                <BoolField label="Required" value={node.validation?.required ?? false} expressionFields={expressionFields} onChange={(required) => onChange({ validation: { ...(node.validation ?? {}), required } })} />
+                <SectionTitle title="Base Control Props" />
+                <TextField label="Placeholder" value={props.placeholder ?? ""} enableExpressions expressionFields={expressionFields} onChange={(placeholder) => setProps(onChange, node, "placeholder", placeholder)} />
+                <TextField label="Help Text" value={props.helpText ?? ""} enableExpressions expressionFields={expressionFields} onChange={(helpText) => setProps(onChange, node, "helpText", helpText)} />
+                <TextField label="Default Value" value={props.defaultValue ?? ""} enableExpressions expressionFields={expressionFields} onChange={(defaultValue) => setProps(onChange, node, "defaultValue", defaultValue)} />
+                <TextField label="Value" value={props.value ?? ""} enableExpressions expressionFields={expressionFields} onChange={(value) => setProps(onChange, node, "value", value)} />
+                <TextField label="Error Message" value={props.errorMessage ?? ""} enableExpressions expressionFields={expressionFields} onChange={(errorMessage) => setProps(onChange, node, "errorMessage", errorMessage)} />
+              </>
+            ) : (
+              <ControlSpecificFields
+                node={node}
+                props={props}
+                expressionFields={expressionFields}
+                onChange={onChange}
+                onConfigureSubmitActions={onConfigureSubmitActions}
+              />
+            )}
           </>
         ) : null}
 
         {tab === "validation" ? (
           <>
-            <BoolField label="Required" value={node.validation?.required ?? false} expressionFields={expressionFields} onChange={(required) => onChange({ validation: { ...(node.validation ?? {}), required } })} />
+            {node.controlType === "button" ? <div style={emptyPanel}>Buttons do not collect submission data.</div> : null}
+            {node.controlType !== "button" ? (
+              <BoolField label="Required" value={node.validation?.required ?? false} expressionFields={expressionFields} onChange={(required) => onChange({ validation: { ...(node.validation ?? {}), required } })} />
+            ) : null}
             {node.controlType === "text" ? (
               <>
                 <NumberField label="Min Length" value={props.minLength} expressionFields={expressionFields} onChange={(minLength) => setProps(onChange, node, "minLength", minLength)} />
@@ -168,7 +185,9 @@ export function PropertiesPanel({
             <BoolField label="Accessible" value={props.accessible ?? true} defaultValue={true} expressionFields={expressionFields} onChange={(accessible) => setProps(onChange, node, "accessible", accessible)} />
             <BoolField label="Auto Focus" value={props.autoFocus ?? false} expressionFields={expressionFields} onChange={(autoFocus) => setProps(onChange, node, "autoFocus", autoFocus)} />
             <TextField label="Test ID" value={props.testID ?? ""} onChange={(testID) => setProps(onChange, node, "testID", testID)} />
-            <ControlSpecificFields node={node} props={props} expressionFields={expressionFields} onChange={onChange} />
+            {node.controlType !== "button" ? (
+              <ControlSpecificFields node={node} props={props} expressionFields={expressionFields} onChange={onChange} />
+            ) : null}
             <SectionTitle title="Style" />
             <TextField label="Width" value={props.style?.width ?? ""} enableExpressions expressionFields={expressionFields} onChange={(width) => setProps(onChange, node, "style.width", width)} />
             <NumberField label="Padding" value={props.style?.padding} expressionFields={expressionFields} onChange={(padding) => setProps(onChange, node, "style.padding", padding)} />
@@ -200,12 +219,32 @@ function ControlSpecificFields({
   props,
   expressionFields,
   onChange,
+  onConfigureSubmitActions,
 }: {
   node: any;
   props: Record<string, any>;
   expressionFields: ExpressionFieldInfo[];
   onChange: (patch: any) => void;
+  onConfigureSubmitActions?: (triggerKey: string) => void;
 }) {
+  if (node.controlType === "button") {
+    return (
+      <>
+        <SectionTitle title="Button Control" />
+        <TextField label="Text" value={props.text ?? node.label ?? "Button"} enableExpressions expressionFields={expressionFields} onChange={(text) => setProps(onChange, node, "text", text)} />
+        <SelectField label="Variant" value={props.variant ?? "primary"} options={["primary", "secondary", "danger"]} onChange={(variant) => setProps(onChange, node, "variant", variant)} />
+        <ButtonActionsField
+          actions={Array.isArray(props.actions) ? props.actions : []}
+          expressionFields={expressionFields}
+          onChange={(actions) => setProps(onChange, node, "actions", actions)}
+        />
+        <button type="button" style={primarySmallButton} onClick={() => onConfigureSubmitActions?.(node.key)}>
+          Configure Submit Actions
+        </button>
+      </>
+    );
+  }
+
   if (node.controlType === "text") {
     return (
       <>
@@ -277,6 +316,94 @@ function ControlSpecificFields({
     );
   }
   return null;
+}
+
+function ButtonActionsField({
+  actions,
+  expressionFields,
+  onChange,
+}: {
+  actions: ButtonAction[];
+  expressionFields: ExpressionFieldInfo[];
+  onChange: (actions: ButtonAction[]) => void;
+}) {
+  function update(index: number, patch: Partial<ButtonAction>) {
+    onChange(actions.map((action, i) => (i === index ? ({ ...action, ...patch } as ButtonAction) : action)));
+  }
+
+  function move(index: number, delta: number) {
+    const next = [...actions];
+    const target = index + delta;
+    if (target < 0 || target >= next.length) return;
+    const [item] = next.splice(index, 1);
+    next.splice(target, 0, item);
+    onChange(next);
+  }
+
+  function remove(index: number) {
+    onChange(actions.filter((_, i) => i !== index));
+  }
+
+  function add(type: ButtonAction["type"]) {
+    const action = type === "submit"
+      ? { id: actionId(), type, clearDraftOnSuccess: true }
+      : { id: actionId(), type };
+    onChange([...actions, action as ButtonAction]);
+  }
+
+  const hasSubmit = actions.some((action) => action.type === "submit");
+
+  return (
+    <div style={actionEditor}>
+      <SectionTitle title="Button Actions" />
+      {actions.length === 0 ? <div style={emptyPanel}>Add at least one action before publishing.</div> : null}
+      {actions.map((action, index) => (
+        <div key={action.id} style={buttonActionCard}>
+          <SelectField
+            label="Action"
+            value={action.type}
+            options={["save_draft", "submit"]}
+            onChange={(type) => {
+              const next = type === "submit"
+                ? { id: action.id, type: "submit", enabled: action.enabled, clearDraftOnSuccess: true }
+                : { id: action.id, type: "save_draft", enabled: action.enabled };
+              update(index, next as Partial<ButtonAction>);
+            }}
+          />
+          <BoolField
+            label="Enabled"
+            value={action.enabled ?? true}
+            defaultValue
+            expressionFields={expressionFields}
+            onChange={(enabled) => update(index, { enabled } as Partial<ButtonAction>)}
+          />
+          {action.type === "submit" ? (
+            <label style={inline}>
+              <input
+                type="checkbox"
+                checked={action.clearDraftOnSuccess !== false}
+                onChange={(event) => update(index, { clearDraftOnSuccess: event.target.checked } as Partial<ButtonAction>)}
+              />
+              <span>Clear draft on success</span>
+            </label>
+          ) : null}
+          <div style={rowActions}>
+            <button type="button" style={smallButton} onClick={() => move(index, -1)} disabled={index === 0}>Move up</button>
+            <button type="button" style={smallButton} onClick={() => move(index, 1)} disabled={index === actions.length - 1}>Move down</button>
+            <button type="button" style={dangerButton} onClick={() => remove(index)}>Remove</button>
+          </div>
+        </div>
+      ))}
+      <div style={rowActions}>
+        <button type="button" style={smallButton} onClick={() => add("save_draft")}>Add Save Draft</button>
+        <button type="button" style={smallButton} onClick={() => add("submit")} disabled={hasSubmit}>Add Submit</button>
+      </div>
+    </div>
+  );
+}
+
+function actionId() {
+  return `action_${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function PanelHeader({ title, hint, onClose }: { title: string; hint: string; onClose?: () => void }) {
@@ -519,6 +646,12 @@ const input: React.CSSProperties = {
 };
 const formulaOk: React.CSSProperties = { color: "#067647", fontSize: 12, fontWeight: 700 };
 const formulaError: React.CSSProperties = { color: "#b42318", fontSize: 12, fontWeight: 700 };
+const actionEditor: React.CSSProperties = { display: "grid", gap: 12 };
+const buttonActionCard: React.CSSProperties = { display: "grid", gap: 10, border: "1px solid #dfe6f0", borderRadius: 8, padding: 12, background: "#f8fafc" };
+const rowActions: React.CSSProperties = { display: "flex", gap: 8, flexWrap: "wrap" };
+const smallButton: React.CSSProperties = { border: "1px solid #d0d5dd", borderRadius: 8, background: "#fff", padding: "8px 10px", fontWeight: 800, cursor: "pointer", color: "#344054" };
+const dangerButton: React.CSSProperties = { ...smallButton, color: "#b42318", border: "1px solid #f0c7c2" };
+const primarySmallButton: React.CSSProperties = { border: 0, borderRadius: 8, background: "#111827", color: "#fff", padding: "10px 12px", fontWeight: 900, cursor: "pointer" };
 
 const accordionBtn: React.CSSProperties = {
   width: "100%",

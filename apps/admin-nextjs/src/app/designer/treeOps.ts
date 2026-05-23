@@ -6,6 +6,7 @@ import type {
   MultiSelectProps,
   Node,
   TextProps,
+  ButtonProps,
 } from "@transform/contracts/form-types";
 import { isLayout, isControl } from "./types";
 
@@ -108,6 +109,15 @@ export function makeControl(controlType: ControlNode["controlType"]): ControlNod
       allowGallery: true,
       quality: 0.8,
     } satisfies ImageProps;
+  }
+
+  if (controlType === "button") {
+    base.label = "Button";
+    base.props = {
+      text: "Button",
+      variant: "primary",
+      actions: [{ id: uuidLike(), type: "submit", clearDraftOnSuccess: true }],
+    } satisfies ButtonProps;
   }
 
   return base;

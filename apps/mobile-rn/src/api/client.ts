@@ -53,6 +53,7 @@ export const api = {
         body: JSON.stringify({
           submissionId: payload.submissionId,
           formVersion: payload.formVersion,
+          triggerKey: payload.triggerKey,
           data: payload.data,
           createdAt: payload.createdAt,
           updatedAt: payload.updatedAt,

@@ -4,6 +4,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { CreateSubmissionDto } from "./dto/create-submission.dto";
 import { validateAndNormalizeSubmissionData } from "./runtime/form-data-validator";
 import { SubmissionActionRunnerService } from "./submission-action-runner.service";
+import type { FormDefinition, Node } from "../../../../packages/contracts/src/form-types";
 
 @Injectable()
 export class SubmissionsService {
@@ -35,6 +36,7 @@ export class SubmissionsService {
       where: { appCode, formKey, version: dto.formVersion, status: "published" },
     });
     if (!form) throw new NotFoundException("Published form version not found");
+    const triggerKey = this.resolveTriggerKey(form.schemaJson as unknown as FormDefinition, dto.triggerKey);
 
     const validation = validateAndNormalizeSubmissionData(form.schemaJson, dto.data);
     const errors = validation.errors;
@@ -43,7 +45,7 @@ export class SubmissionsService {
     }
 
     const actions = await this.prisma.formSubmitAction.findMany({
-      where: { appCode, formId: form.id, enabled: true },
+      where: { appCode, formId: form.id, enabled: true, triggerKey },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     });
 
@@ -65,6 +67,7 @@ export class SubmissionsService {
       type: "email_pdf" | "database" | "rest_api";
       name: string;
       sortOrder: number;
+      triggerKey: string | null;
       connectorId: string | null;
       configJson: Prisma.JsonValue;
     }>,
@@ -99,6 +102,7 @@ export class SubmissionsService {
               name: action.name,
               type: action.type,
               sortOrder: action.sortOrder,
+              triggerKey: action.triggerKey,
               connectorId: action.connectorId,
               configJson: action.configJson,
             } as Prisma.InputJsonObject,
@@ -132,7 +136,7 @@ export class SubmissionsService {
       actionId: string | null;
       actionName: string;
       actionType: "email_pdf" | "database" | "rest_api";
-      status: "pending" | "running" | "success" | "failed";
+      status: "pending" | "running" | "success" | "failed" | "skipped";
       attemptCount: number;
     }>;
   }, duplicate: boolean) {
@@ -150,5 +154,25 @@ export class SubmissionsService {
         attemptCount: run.attemptCount,
       })),
     };
+  }
+
+  private resolveTriggerKey(form: FormDefinition, triggerKey: string | undefined) {
+    const normalized = typeof triggerKey === "string" && triggerKey.trim() ? triggerKey.trim() : null;
+    if (!normalized) return null;
+
+    const buttonKeys = new Set<string>();
+    this.collectButtonKeys(form.root, buttonKeys);
+    if (!buttonKeys.has(normalized)) {
+      throw new BadRequestException(`triggerKey "${normalized}" does not match a button control.`);
+    }
+    return normalized;
+  }
+
+  private collectButtonKeys(node: Node, keys: Set<string>) {
+    if (node.type === "control") {
+      if (node.controlType === "button") keys.add(node.key);
+      return;
+    }
+    node.children.forEach((child) => this.collectButtonKeys(child, keys));
   }
 }

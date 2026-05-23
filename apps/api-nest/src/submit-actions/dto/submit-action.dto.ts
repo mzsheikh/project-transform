@@ -17,6 +17,10 @@ export class CreateSubmitActionDto {
 
   @IsString()
   @IsOptional()
+  triggerKey?: string | null;
+
+  @IsString()
+  @IsOptional()
   connectorId?: string | null;
 
   @IsObject()
@@ -39,6 +43,10 @@ export class UpdateSubmitActionDto {
   @IsInt()
   @IsOptional()
   sortOrder?: number;
+
+  @IsString()
+  @IsOptional()
+  triggerKey?: string | null;
 
   @IsString()
   @IsOptional()

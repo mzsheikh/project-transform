@@ -208,6 +208,10 @@ export function validateFormExpressions(form: FormDefinition): ExpressionIssue[]
       });
     }
 
+    if (node.controlType === "button") {
+      issues.push(...validateButtonActions(props, `${path}.props.actions`, node.key));
+    }
+
     const expressionProps = [
       ...collectExpressionProps(props, `${path}.props`),
       ...collectExpressionProps(node.validation ?? {}, `${path}.validation`),
@@ -259,6 +263,64 @@ export function validateFormExpressions(form: FormDefinition): ExpressionIssue[]
   return dedupeIssues(issues);
 }
 
+function validateButtonActions(
+  props: Record<string, unknown>,
+  path: string,
+  key: string,
+): ExpressionIssue[] {
+  const actions = props.actions;
+  const issues: ExpressionIssue[] = [];
+
+  if (!Array.isArray(actions) || actions.length === 0) {
+    return [{
+      code: "button.actionsRequired",
+      path,
+      message: `Button "${key}" must define at least one action.`,
+    }];
+  }
+
+  let submitCount = 0;
+  let enabledCount = 0;
+  actions.forEach((action, index) => {
+    if (!isRecord(action)) {
+      issues.push({
+        code: "button.invalidAction",
+        path: `${path}.${index}`,
+        message: `Button "${key}" action must be an object.`,
+      });
+      return;
+    }
+
+    if (action.enabled !== false) enabledCount += 1;
+    if (action.type === "submit") submitCount += 1;
+    if (action.type !== "save_draft" && action.type !== "submit") {
+      issues.push({
+        code: "button.invalidActionType",
+        path: `${path}.${index}.type`,
+        message: `Button "${key}" action type is invalid.`,
+      });
+    }
+  });
+
+  if (enabledCount === 0) {
+    issues.push({
+      code: "button.enabledActionRequired",
+      path,
+      message: `Button "${key}" must have at least one enabled action.`,
+    });
+  }
+
+  if (submitCount > 1) {
+    issues.push({
+      code: "button.duplicateSubmitAction",
+      path,
+      message: `Button "${key}" can define only one submit action.`,
+    });
+  }
+
+  return issues;
+}
+
 export function formHasExpressions(form: FormDefinition): boolean {
   let found = false;
   walkNodes(form.root, (node) => {
@@ -283,6 +345,7 @@ function applyNodeExpressions(
   errorPrefix: string | undefined,
 ) {
   if (node.type === "control") {
+    if (node.controlType === "button") return;
     applyControlExpressions(node, rootData, scopeData, errors, rowIndex, errorPrefix);
     return;
   }

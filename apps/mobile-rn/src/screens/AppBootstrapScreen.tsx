@@ -341,7 +341,7 @@ export function AppBootstrapScreen() {
           setStage((current) => (current.kind === "renderForm" ? { ...current, drafts, draftId: draft.id } : current));
           Alert.alert("Draft saved", "Your form draft has been saved on this device.");
         }}
-        onSubmit={async (data) => {
+        onSubmit={async (data, options) => {
           const now = new Date().toISOString();
           const payload: SubmissionPayload = {
             appCode: stage.appCode,
@@ -351,13 +351,14 @@ export function AppBootstrapScreen() {
             status: "pending_sync",
             createdAt: now,
             updatedAt: now,
+            triggerKey: options?.triggerKey,
             data,
           };
 
           setSubmitting(true);
           try {
             const accepted = await api.submitForm(payload);
-            if (currentDraftId ?? stage.draftId) {
+            if ((options?.clearDraftOnSuccess ?? true) && (currentDraftId ?? stage.draftId)) {
               await deleteDraft(stage.appCode, currentDraftId ?? stage.draftId!);
               const drafts = await listDrafts(stage.appCode);
               setStage((current) => (current.kind === "renderForm" ? { ...current, drafts, draftId: undefined } : current));

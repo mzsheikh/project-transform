@@ -52,10 +52,14 @@ const restDefault = JSON.stringify(
 export function SubmitActionsPanel({
   appCode,
   formKey,
+  triggerKey,
+  title: titleOverride,
   onClose,
 }: {
   appCode: string;
   formKey: string;
+  triggerKey?: string;
+  title?: string;
   onClose: () => void;
 }) {
   const qc = useQueryClient();
@@ -66,6 +70,10 @@ export function SubmitActionsPanel({
   const [connectorId, setConnectorId] = useState("");
   const [configText, setConfigText] = useState(emailDefault);
   const [status, setStatus] = useState("");
+  const visibleActions = useMemo(
+    () => (triggerKey ? (actions.data ?? []).filter((action) => action.triggerKey === triggerKey) : actions.data ?? []),
+    [actions.data, triggerKey],
+  );
 
   const compatibleConnectors = useMemo(() => {
     const rows = connectors.data ?? [];
@@ -112,7 +120,8 @@ export function SubmitActionsPanel({
         type,
         name,
         enabled: true,
-        sortOrder: (actions.data?.length ?? 0) * 10,
+        sortOrder: visibleActions.length * 10,
+        triggerKey: triggerKey ?? null,
         connectorId: type === "email_pdf" ? null : connectorId,
         configJson,
       });
@@ -153,7 +162,7 @@ export function SubmitActionsPanel({
         <header style={modalHeader}>
           <div>
             <h2 style={title}>Submit Actions</h2>
-            <div style={meta}>{appCode} / {formKey}</div>
+            <div style={meta}>{titleOverride ?? "Submit Actions"} | {appCode} / {formKey}{triggerKey ? ` / ${triggerKey}` : ""}</div>
           </div>
           <button type="button" style={closeButton} onClick={onClose}>×</button>
         </header>
@@ -162,11 +171,11 @@ export function SubmitActionsPanel({
           <section style={panel}>
             <h3 style={panelTitle}>Configured actions</h3>
             {actions.isLoading ? <p>Loading...</p> : null}
-            {(actions.data ?? []).map((action) => (
+            {visibleActions.map((action) => (
               <article key={action.id} style={actionCard}>
                 <div>
                   <strong>{action.name}</strong>
-                  <div style={meta}>{action.type} | order {action.sortOrder} | {action.enabled ? "enabled" : "disabled"}</div>
+                  <div style={meta}>{action.type} | order {action.sortOrder} | {action.enabled ? "enabled" : "disabled"}{action.triggerKey ? ` | button ${action.triggerKey}` : ""}</div>
                 </div>
                 <pre style={pre}>{JSON.stringify(action.configJson, null, 2)}</pre>
                 <div style={rowActions}>

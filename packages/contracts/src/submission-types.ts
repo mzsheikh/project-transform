@@ -36,6 +36,7 @@ export interface SubmissionPayload {
   status: SubmissionStatus;
   createdAt: string;      // ISO string
   updatedAt: string;      // ISO string
+  triggerKey?: string;
 
   data: Record<string, SubmissionDataValue>;
 }

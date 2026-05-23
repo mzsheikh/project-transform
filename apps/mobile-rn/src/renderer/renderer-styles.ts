@@ -95,6 +95,13 @@ export const styles = StyleSheet.create({
     borderColor: "#111",
     backgroundColor: "#fff",
   },
+  buttonDanger: {
+    flex: 1,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+    backgroundColor: "#b42318",
+  },
   buttonText: { color: "#fff", fontWeight: "700" },
   buttonSecondaryText: { color: "#111", fontWeight: "700" },
   buttonDisabled: { opacity: 0.5 },

@@ -5,7 +5,7 @@ import type { LayoutNode, Node } from "@transform/contracts/form-types";
 import type { SubmissionDataValue } from "@transform/contracts/submission-types";
 import { resolveControlState } from "@transform/contracts/expressions";
 
-import type { FormState, SetValue } from "./types";
+import type { ExecuteButtonActions, FormState, SetValue } from "./types";
 
 import { LayoutRenderer } from "./LayoutRenderer";
 import { ControlRenderer } from "./controls/ControlRenderer";
@@ -17,21 +17,22 @@ export type NodeRendererProps = {
   rootData?: FormState;
   setValue: SetValue;
   errors: Record<string, string>;
+  onButtonPress?: ExecuteButtonActions;
   errorPrefix?: string;
   rowIndex?: number;
 };
 
-export function NodeRenderer({ node, data, rootData = data, setValue, errors, errorPrefix = "", rowIndex }: NodeRendererProps) {
+export function NodeRenderer({ node, data, rootData = data, setValue, errors, onButtonPress, errorPrefix = "", rowIndex }: NodeRendererProps) {
   if (node.type === "layout") {
     if (node.layoutType === "repeater") {
-      return <RepeatSectionRenderer node={node} data={data} rootData={rootData} setValue={setValue} errors={errors} errorPrefix={errorPrefix} />;
+      return <RepeatSectionRenderer node={node} data={data} rootData={rootData} setValue={setValue} errors={errors} onButtonPress={onButtonPress} errorPrefix={errorPrefix} />;
     }
 
     return (
       <LayoutRenderer
         node={node}
         renderNode={(child) => (
-          <NodeRenderer node={child} data={data} rootData={rootData} setValue={setValue} errors={errors} errorPrefix={errorPrefix} rowIndex={rowIndex} />
+          <NodeRenderer node={child} data={data} rootData={rootData} setValue={setValue} errors={errors} onButtonPress={onButtonPress} errorPrefix={errorPrefix} rowIndex={rowIndex} />
         )}
       />
     );
@@ -47,6 +48,7 @@ export function NodeRenderer({ node, data, rootData = data, setValue, errors, er
       node={effectiveNode}
       value={data[node.key]}
       setValue={setValue}
+      onButtonPress={onButtonPress}
       error={errors[errorKey] ?? state.errors[0]?.message}
     />
   );
@@ -58,6 +60,7 @@ function RepeatSectionRenderer({
   rootData,
   setValue,
   errors,
+  onButtonPress,
   errorPrefix,
 }: {
   node: LayoutNode;
@@ -65,6 +68,7 @@ function RepeatSectionRenderer({
   rootData: FormState;
   setValue: SetValue;
   errors: Record<string, string>;
+  onButtonPress?: ExecuteButtonActions;
   errorPrefix: string;
 }) {
   const repeaterKey = node.key ?? node.id;
@@ -141,6 +145,7 @@ function RepeatSectionRenderer({
                   rootData={rootData}
                   setValue={itemSetValue}
                   errors={errors}
+                  onButtonPress={onButtonPress}
                   errorPrefix={itemPrefix}
                   rowIndex={index}
                 />

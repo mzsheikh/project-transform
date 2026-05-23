@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from "@nestjs/comm
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateSubmitActionDto, UpdateSubmitActionDto } from "./dto/submit-action.dto";
+import type { FormDefinition, Node } from "../../../../packages/contracts/src/form-types";
 
 @Injectable()
 export class SubmitActionsService {
@@ -19,6 +20,7 @@ export class SubmitActionsService {
   async create(appCode: string, formKey: string, dto: CreateSubmitActionDto) {
     const draft = await this.findDraft(appCode, formKey);
     const connectorId = await this.resolveConnectorId(appCode, dto.type, dto.connectorId, dto.configJson);
+    const triggerKey = this.resolveTriggerKey(draft.schemaJson, dto.triggerKey);
     const action = await this.prisma.formSubmitAction.create({
       data: {
         appCode,
@@ -29,6 +31,7 @@ export class SubmitActionsService {
         name: dto.name.trim(),
         enabled: dto.enabled ?? true,
         sortOrder: dto.sortOrder ?? 0,
+        triggerKey,
         connectorId,
         configJson: dto.configJson as Prisma.InputJsonObject,
       },
@@ -45,6 +48,10 @@ export class SubmitActionsService {
 
     const nextType = dto.type ?? existing.type;
     const nextConfig = dto.configJson ?? this.asRecord(existing.configJson);
+    const triggerKey = this.resolveTriggerKey(
+      draft.schemaJson,
+      dto.triggerKey === undefined ? existing.triggerKey : dto.triggerKey,
+    );
     const connectorId = await this.resolveConnectorId(
       appCode,
       nextType,
@@ -59,6 +66,7 @@ export class SubmitActionsService {
         name: dto.name?.trim(),
         enabled: dto.enabled,
         sortOrder: dto.sortOrder,
+        triggerKey,
         connectorId,
         configJson: dto.configJson ? (dto.configJson as Prisma.InputJsonObject) : undefined,
       },
@@ -108,6 +116,29 @@ export class SubmitActionsService {
     return resolved;
   }
 
+  private resolveTriggerKey(schemaJson: Prisma.JsonValue, triggerKey: string | null | undefined) {
+    const normalized = typeof triggerKey === "string" && triggerKey.trim() ? triggerKey.trim() : null;
+    if (!normalized) return null;
+
+    const form = schemaJson as unknown as FormDefinition;
+    const keys = new Set<string>();
+    if (form?.root) {
+      this.collectButtonKeys(form.root, keys);
+    }
+    if (!keys.has(normalized)) {
+      throw new BadRequestException(`Submit action triggerKey "${normalized}" does not match a button control.`);
+    }
+    return normalized;
+  }
+
+  private collectButtonKeys(node: Node, keys: Set<string>) {
+    if (node.type === "control") {
+      if (node.controlType === "button") keys.add(node.key);
+      return;
+    }
+    node.children.forEach((child) => this.collectButtonKeys(child, keys));
+  }
+
   private toPublic(action: {
     id: string;
     appCode: string;
@@ -118,6 +149,7 @@ export class SubmitActionsService {
     name: string;
     enabled: boolean;
     sortOrder: number;
+    triggerKey?: string | null;
     connectorId: string | null;
     configJson: Prisma.JsonValue;
     createdAt: Date;
@@ -133,6 +165,7 @@ export class SubmitActionsService {
       name: action.name,
       enabled: action.enabled,
       sortOrder: action.sortOrder,
+      triggerKey: action.triggerKey ?? null,
       connectorId: action.connectorId,
       configJson: action.configJson,
       createdAt: action.createdAt.toISOString(),

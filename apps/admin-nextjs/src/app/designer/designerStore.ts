@@ -404,6 +404,15 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
       props: {},
     };
 
+    if (controlType === "button") {
+      newControl.label = "Button";
+      newControl.props = {
+        text: "Button",
+        variant: "primary",
+        actions: [{ id: uid("action"), type: "submit", clearDraftOnSuccess: true }],
+      };
+    }
+
     const nextRoot: LayoutNode =
       cur.root.id === parentLayoutId
         ? {

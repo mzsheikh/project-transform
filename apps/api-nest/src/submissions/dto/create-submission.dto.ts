@@ -12,6 +12,10 @@ export class CreateSubmissionDto {
 
   @IsString()
   @IsOptional()
+  triggerKey?: string;
+
+  @IsString()
+  @IsOptional()
   createdAt?: string;
 
   @IsString()

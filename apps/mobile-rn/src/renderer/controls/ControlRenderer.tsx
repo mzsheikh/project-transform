@@ -15,15 +15,17 @@ import { SignatureControl } from "./SignatureControl";
 import { SwitchControl } from "./SwitchControl";
 import { TextControl } from "./TextControl";
 import { UnsupportedControl } from "./UnsupportedControl";
+import { ButtonControl } from "./ButtonControl";
 
 export type ControlRendererProps = {
   node: ControlNode;
   value: SubmissionDataValue;
   setValue: SetValue;
+  onButtonPress?: (node: ControlNode) => Promise<void> | void;
   error?: string;
 };
 
-export function ControlRenderer({ node, value, setValue, error }: ControlRendererProps) {
+export function ControlRenderer({ node, value, setValue, onButtonPress, error }: ControlRendererProps) {
   const controlType: ControlType = node.controlType;
 
   switch (controlType) {
@@ -45,6 +47,8 @@ export function ControlRenderer({ node, value, setValue, error }: ControlRendere
       return <ImageControl node={node} value={value} setValue={setValue} error={error} />;
     case "file":
       return <FileControl node={node} value={value} setValue={setValue} error={error} />;
+    case "button":
+      return <ButtonControl node={node} onPress={onButtonPress} error={error} />;
     default:
       return <UnsupportedControl node={node} value={value} setValue={setValue} error={error} />;
   }

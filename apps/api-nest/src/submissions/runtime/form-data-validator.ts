@@ -46,6 +46,7 @@ function compareCalculatedValues(
   prefix: string,
 ): ValidationError[] {
   if (node.type === "control") {
+    if (node.controlType === "button") return [];
     if (!hasCalculatedValue(node)) return [];
     if (!Object.prototype.hasOwnProperty.call(submittedData, node.key)) return [];
     const key = prefix ? `${prefix}.${node.key}` : node.key;

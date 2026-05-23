@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, Pressable, ScrollView } from "react-native";
 
-import type { FormDefinition } from "@transform/contracts/form-types";
+import type { ButtonAction, ControlNode, FormDefinition, Node } from "@transform/contracts/form-types";
 
 import type { SubmissionDataValue } from "@transform/contracts/submission-types";
 import { evaluateCalculatedFormData } from "@transform/contracts/expressions";
@@ -16,8 +16,8 @@ export type FormRendererProps = {
   initialData?: FormState;
 
   // Called when user taps Save Draft / Submit
-  onSaveDraft?: (data: FormState) => void;
-  onSubmit?: (data: FormState) => void;
+  onSaveDraft?: (data: FormState) => void | Promise<void>;
+  onSubmit?: (data: FormState, options?: { triggerKey?: string; clearDraftOnSuccess?: boolean }) => void | Promise<void>;
 
   // Optional: if you want to persist state as user types
   onChange?: (data: FormState) => void;
@@ -77,21 +77,41 @@ export function FormRenderer({
     return validateFormData(form, data);
   }
 
-  function handleSaveDraft() {
+  async function handleSaveDraft() {
     // drafts typically allow incomplete data
-    onSaveDraft?.(data);
+    await onSaveDraft?.(data);
   }
 
-  function handleSubmit() {
+  async function handleSubmit(options?: { triggerKey?: string; clearDraftOnSuccess?: boolean }): Promise<boolean> {
     const errs = validate();
     if (errs.length > 0) {
       const map: Record<string, string> = {};
       for (const e of errs) map[e.key] = e.message;
       setErrors(map);
-      return;
+      return false;
     }
-    onSubmit?.(data);
+    await onSubmit?.(data, options);
+    return true;
   }
+
+  async function executeButtonActions(node: ControlNode) {
+    const actions = Array.isArray(node.props?.actions) ? (node.props.actions as ButtonAction[]) : [];
+    for (const action of actions) {
+      if (!action || action.enabled === false) continue;
+      if (action.type === "save_draft") {
+        await handleSaveDraft();
+      }
+      if (action.type === "submit") {
+        const submitted = await handleSubmit({
+          triggerKey: node.key,
+          clearDraftOnSuccess: action.clearDraftOnSuccess !== false,
+        });
+        if (!submitted) return;
+      }
+    }
+  }
+
+  const showLegacyFooter = form.schemaVersion !== "1.2" && !hasButtonControls(form.root);
 
   return (
     <View style={styles.container}>
@@ -99,18 +119,25 @@ export function FormRenderer({
       {form.description ? <Text style={styles.description}>{form.description}</Text> : null}
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <NodeRenderer node={form.root} data={data} rootData={data} setValue={setValue} errors={{ ...errors, ...expressionErrors }} />
+        <NodeRenderer node={form.root} data={data} rootData={data} setValue={setValue} errors={{ ...errors, ...expressionErrors }} onButtonPress={executeButtonActions} />
       </ScrollView>
 
-      <View style={styles.footer}>
-        <Pressable style={styles.buttonPrimary} onPress={handleSaveDraft}>
-          <Text style={styles.buttonText}>Save Draft</Text>
-        </Pressable>
+      {showLegacyFooter ? (
+        <View style={styles.footer}>
+          <Pressable style={styles.buttonPrimary} onPress={() => void handleSaveDraft()}>
+            <Text style={styles.buttonText}>Save Draft</Text>
+          </Pressable>
 
-        <Pressable style={styles.buttonPrimary} onPress={handleSubmit}>
-          <Text style={styles.buttonText}>Submit</Text>
-        </Pressable>
-      </View>
+          <Pressable style={styles.buttonPrimary} onPress={() => void handleSubmit()}>
+            <Text style={styles.buttonText}>Submit</Text>
+          </Pressable>
+        </View>
+      ) : null}
     </View>
   );
+}
+
+function hasButtonControls(node: Node): boolean {
+  if (node.type === "control") return node.controlType === "button";
+  return node.children.some(hasButtonControls);
 }

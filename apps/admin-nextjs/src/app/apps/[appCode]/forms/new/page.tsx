@@ -14,6 +14,58 @@ function normalizeFormKey(value: string) {
     .replace(/^_+|_+$/g, "");
 }
 
+const defaultSubmitButtonKey = "submitButton";
+
+const defaultEmailPdfActionConfig = {
+  to: ["operations@example.com"],
+  cc: [],
+  bcc: [],
+  subjectTemplate: "{{formKey}} submission {{submissionId}}",
+  bodyTemplate: "A new {{formKey}} submission was received.",
+  includeJson: true,
+};
+
+function createDefaultSchema(formKey: string, title: string) {
+  return {
+    schemaVersion: "1.2",
+    formKey,
+    title,
+    version: 1,
+    status: "draft",
+    root: {
+      type: "layout",
+      layoutType: "stack",
+      id: "root",
+      children: [
+        {
+          id: "save_draft_button",
+          type: "control",
+          controlType: "button",
+          key: "saveDraftButton",
+          label: "Save Draft",
+          props: {
+            text: "Save Draft",
+            variant: "secondary",
+            actions: [{ id: "save_draft", type: "save_draft" }],
+          },
+        },
+        {
+          id: "submit_button",
+          type: "control",
+          controlType: "button",
+          key: defaultSubmitButtonKey,
+          label: "Submit",
+          props: {
+            text: "Submit",
+            variant: "primary",
+            actions: [{ id: "submit", type: "submit", clearDraftOnSuccess: true }],
+          },
+        },
+      ],
+    },
+  };
+}
+
 export default function NewFormPage() {
   const params = useParams<{ appCode?: string }>();
   const appCodeParam = params?.appCode;
@@ -61,18 +113,20 @@ export default function NewFormPage() {
 
     if (Object.keys(nextErrors).length > 0) return;
 
-    const schemaJson = {
-      schemaVersion: "1.0",
-      formKey: cleanedFormKey,
-      title: cleanedTitle,
-      version: 1,
-      status: "draft",
-      root: { type: "layout", layoutType: "stack", id: "root", children: [] },
-    };
+    const schemaJson = createDefaultSchema(cleanedFormKey, cleanedTitle);
 
     setIsSubmitting(true);
     try {
       await api.createDraftForm(appCode, { formKey: cleanedFormKey, title: cleanedTitle, schemaJson });
+      await api.createSubmitAction(appCode, cleanedFormKey, {
+        type: "email_pdf",
+        name: "Email PDF",
+        enabled: true,
+        sortOrder: 0,
+        triggerKey: defaultSubmitButtonKey,
+        connectorId: null,
+        configJson: defaultEmailPdfActionConfig,
+      });
       router.push(`/apps/${appCode}`);
     } catch (err: any) {
       setError(err.message ?? "Failed to create draft form.");

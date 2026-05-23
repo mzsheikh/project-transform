@@ -41,6 +41,7 @@ function validateNode(
   errors: ValidationError[]
 ) {
   if (node.type === "control") {
+    if (node.controlType === "button") return;
     const props = (node.props ?? {}) as Record<string, unknown>;
     const state = resolveControlState(node, { rootData, itemData: data });
     const errorKey = prefix ? `${prefix}.${node.key}` : node.key;
@@ -100,6 +101,8 @@ function validateRepeater(
 
 export function validateControlValue(node: ControlNode, value: SubmissionDataValue): string[] {
   const errors: string[] = [];
+
+  if (node.controlType === "button") return errors;
 
   if (node.validation?.required === true && isEmptyValue(value)) {
     errors.push("This field is required.");

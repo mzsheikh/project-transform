@@ -69,6 +69,12 @@ export class FormsService {
       });
     }
 
+    const draftActions = await this.prisma.formSubmitAction.findMany({
+      where: { appCode, formId: draft.id },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    });
+    this.validateSubmitActionTriggers(draft.schemaJson as unknown as FormDefinition, draftActions);
+
     // Find current max published version
     const max = await this.prisma.form.aggregate({
       where: { appCode, formKey },
@@ -101,10 +107,6 @@ export class FormsService {
         },
       });
 
-      const draftActions = await tx.formSubmitAction.findMany({
-        where: { appCode, formId: draft.id },
-        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-      });
       if (draftActions.length > 0) {
         await tx.formSubmitAction.createMany({
           data: draftActions.map((action) => ({
@@ -116,6 +118,7 @@ export class FormsService {
             name: action.name,
             enabled: action.enabled,
             sortOrder: action.sortOrder,
+            triggerKey: action.triggerKey,
             connectorId: action.connectorId,
             configJson:
               action.configJson === null
@@ -136,6 +139,32 @@ export class FormsService {
     });
     if (!latest) throw new NotFoundException("Published form not found");
     return latest;
+  }
+
+  private validateSubmitActionTriggers(
+    form: FormDefinition,
+    actions: Array<{ name: string; triggerKey: string | null }>,
+  ) {
+    const buttonKeys = new Set<string>();
+    this.collectButtonKeys(form.root, buttonKeys);
+    const invalid = actions.find((action) => action.triggerKey && !buttonKeys.has(action.triggerKey));
+    if (invalid) {
+      throw new BadRequestException({
+        message: "Form submit action validation failed",
+        errors: [{
+          key: invalid.triggerKey,
+          message: `Submit action "${invalid.name}" references a button that does not exist.`,
+        }],
+      });
+    }
+  }
+
+  private collectButtonKeys(node: FormDefinition["root"] | FormDefinition["root"]["children"][number], keys: Set<string>) {
+    if (node.type === "control") {
+      if (node.controlType === "button") keys.add(node.key);
+      return;
+    }
+    node.children.forEach((child) => this.collectButtonKeys(child, keys));
   }
 
   async deleteForm(appCode: string, formKey: string) {

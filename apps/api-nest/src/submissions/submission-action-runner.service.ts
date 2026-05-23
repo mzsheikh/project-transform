@@ -12,9 +12,12 @@ type ActionSnapshot = {
   name: string;
   type: "email_pdf" | "database" | "rest_api";
   sortOrder: number;
+  triggerKey?: string | null;
   connectorId?: string | null;
   configJson: Record<string, unknown>;
 };
+
+type RunResult = "success" | "pending" | "failed" | "skipped";
 
 @Injectable()
 export class SubmissionActionRunnerService implements OnModuleInit, OnModuleDestroy {
@@ -77,7 +80,12 @@ export class SubmissionActionRunnerService implements OnModuleInit, OnModuleDest
       });
 
       for (const run of runs) {
-        await this.processRun(run.id);
+        const result = await this.processRun(run.id);
+        if (result === "failed") {
+          await this.skipRemainingRuns(submissionId);
+          break;
+        }
+        if (result !== "success") break;
       }
       await this.recomputeSubmissionStatus(submissionId);
     } finally {
@@ -85,12 +93,13 @@ export class SubmissionActionRunnerService implements OnModuleInit, OnModuleDest
     }
   }
 
-  private async processRun(runId: string) {
+  private async processRun(runId: string): Promise<RunResult> {
     const run = await this.prisma.submissionActionRun.findUnique({
       where: { id: runId },
       include: { submission: true },
     });
-    if (!run || run.status !== "pending") return;
+    if (!run) return "skipped";
+    if (run.status !== "pending") return run.status as RunResult;
 
     const attemptCount = run.attemptCount + 1;
     await this.prisma.submissionActionRun.update({
@@ -123,19 +132,42 @@ export class SubmissionActionRunnerService implements OnModuleInit, OnModuleDest
         },
       });
       this.logger.log(`Submission action succeeded: ${run.id}`);
+      return "success";
     } catch (error) {
       const finalFailure = attemptCount >= run.maxAttempts;
+      const nextAttemptAt = finalFailure ? null : this.nextAttempt(attemptCount);
       await this.prisma.submissionActionRun.update({
         where: { id: run.id },
         data: {
           status: finalFailure ? "failed" : "pending",
           errorJson: this.sanitizeError(error) as Prisma.InputJsonObject,
-          nextAttemptAt: finalFailure ? null : this.nextAttempt(attemptCount),
+          nextAttemptAt,
           completedAt: finalFailure ? new Date() : null,
         },
       });
+      if (!finalFailure && nextAttemptAt) {
+        await this.delayRemainingRuns(run.submissionId, nextAttemptAt);
+      }
       this.logger.warn(`Submission action failed: ${run.id}`);
+      return finalFailure ? "failed" : "pending";
     }
+  }
+
+  private async skipRemainingRuns(submissionId: string) {
+    await this.prisma.submissionActionRun.updateMany({
+      where: { submissionId, status: "pending" },
+      data: {
+        status: "skipped",
+        completedAt: new Date(),
+      },
+    });
+  }
+
+  private async delayRemainingRuns(submissionId: string, nextAttemptAt: Date) {
+    await this.prisma.submissionActionRun.updateMany({
+      where: { submissionId, status: "pending", nextAttemptAt: null },
+      data: { nextAttemptAt },
+    });
   }
 
   private async execute(snapshot: ActionSnapshot, context: TemplateContext) {
@@ -230,6 +262,7 @@ export class SubmissionActionRunnerService implements OnModuleInit, OnModuleDest
       name: String(record.name ?? "Submit action"),
       type,
       sortOrder: typeof record.sortOrder === "number" ? record.sortOrder : 0,
+      triggerKey: typeof record.triggerKey === "string" ? record.triggerKey : null,
       connectorId: typeof record.connectorId === "string" ? record.connectorId : null,
       configJson: this.asRecord(record.configJson as Prisma.JsonValue),
     };

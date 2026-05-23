@@ -29,6 +29,7 @@ const CONTROLS: ToolboxEntry[] = [
   { label: "Signature", item: { kind: "control", controlType: "signature" }, icon: <SignatureIcon /> },
   { label: "Image", item: { kind: "control", controlType: "image" }, icon: <ImageIcon /> },
   { label: "File", item: { kind: "control", controlType: "file" }, icon: <FileIcon /> },
+  { label: "Button", item: { kind: "control", controlType: "button" }, icon: <ButtonIcon /> },
 ];
 
 export function Toolbox({
@@ -369,6 +370,15 @@ function FileIcon() {
     <svg viewBox="0 0 16 16" style={iconBase} aria-hidden>
       <path d="M4 2h5l3 3v9H4z" stroke="currentColor" strokeWidth="1.4" fill="none" />
       <path d="M9 2v3h3" stroke="currentColor" strokeWidth="1.4" fill="none" />
+    </svg>
+  );
+}
+
+function ButtonIcon() {
+  return (
+    <svg viewBox="0 0 16 16" style={iconBase} aria-hidden>
+      <rect x="2.5" y="4.5" width="11" height="7" rx="2" stroke="currentColor" strokeWidth="1.4" fill="none" />
+      <path d="M5.5 8h5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
     </svg>
   );
 }

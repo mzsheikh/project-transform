@@ -2,7 +2,7 @@
 
 import type { SubmissionDataValue } from "./submission-types";
 
-export type SchemaVersion = "1.0" | "1.1";
+export type SchemaVersion = "1.0" | "1.1" | "1.2";
 export type ExpressionString = `=${string}`;
 export type DynamicValue<T> = T | ExpressionString;
 
@@ -84,7 +84,8 @@ export type ControlType =
   | "date"
   | "signature"
   | "image"
-  | "file";
+  | "file"
+  | "button";
 
 export interface ControlNode extends BaseNode {
   type: "control";
@@ -103,7 +104,8 @@ export type ControlProps =
   | DateProps
   | SignatureProps
   | ImageProps
-  | FileProps;
+  | FileProps
+  | ButtonProps;
 
 export interface BaseControlProps {
   [key: string]: unknown;
@@ -278,6 +280,27 @@ export interface FileProps extends BaseControlProps {
   uploadEndpoint?: string;
   autoUpload?: DynamicValue<boolean>;
   allowedMimeTypes?: string[];
+}
+
+export type ButtonActionType = "save_draft" | "submit";
+
+export type ButtonAction =
+  | {
+      id: string;
+      type: "save_draft";
+      enabled?: DynamicValue<boolean>;
+    }
+  | {
+      id: string;
+      type: "submit";
+      enabled?: DynamicValue<boolean>;
+      clearDraftOnSuccess?: boolean;
+    };
+
+export interface ButtonProps extends BaseControlProps {
+  text?: DynamicValue<string>;
+  variant?: "primary" | "secondary" | "danger";
+  actions: ButtonAction[];
 }
 
 export type SharedControlProps = BaseControlProps;
