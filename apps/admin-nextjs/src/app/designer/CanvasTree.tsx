@@ -150,7 +150,14 @@ function TreeNode({
     return (
       <div style={{ marginTop: depth === 0 ? 0 : 18 }}>
         <div
-          onClick={() => onSelect(node.id)}
+          onClick={(event) => {
+            event.stopPropagation();
+            onSelect(node.id);
+          }}
+          onMouseDown={(event) => {
+            event.stopPropagation();
+            onSelect(node.id);
+          }}
           style={{
             ...layoutCard,
             ...(selected ? selectedCard : null),
