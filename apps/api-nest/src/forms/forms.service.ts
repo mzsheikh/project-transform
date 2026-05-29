@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { ConnectorsService } from "../connectors/connectors.service";
 import { CreateDraftFormDto } from "./dto/create-draft-form.dto";
 import { UpdateDraftFormDto } from "./dto/update-draft-form.dto";
 import { Prisma } from "@prisma/client";
@@ -17,7 +18,10 @@ type ButtonSubmitActionRef = {
 
 @Injectable()
 export class FormsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private connectors: ConnectorsService,
+  ) {}
 
   async list(appCode: string) {
     return this.prisma.form.findMany({
@@ -84,11 +88,13 @@ export class FormsService {
       });
     }
 
+    const formSchema = draft.schemaJson as unknown as FormDefinition;
+    await this.validateDataSourceConnectors(appCode, formSchema);
+
     const draftActions = await this.prisma.formSubmitAction.findMany({
       where: { appCode, formId: draft.id },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     });
-    const formSchema = draft.schemaJson as unknown as FormDefinition;
     this.validateSubmitActionTriggers(formSchema, draftActions);
     const orderedDraftActions = this.withSchemaSortOrder(formSchema, draftActions);
 
@@ -157,6 +163,22 @@ export class FormsService {
     });
     if (!latest) throw new NotFoundException("Published form not found");
     return latest;
+  }
+
+  private async validateDataSourceConnectors(appCode: string, form: FormDefinition) {
+    const sources = Array.isArray(form.dataSources) ? form.dataSources : [];
+    for (const source of sources) {
+      const runtime = await this.connectors.runtimeConfig(appCode, source.connectorId);
+      if (runtime.type !== source.type) {
+        throw new BadRequestException({
+          message: "Form data source validation failed",
+          errors: [{
+            key: source.key,
+            message: `Data source "${source.key}" must use a ${source.type} connector.`,
+          }],
+        });
+      }
+    }
   }
 
   private validateSubmitActionTriggers(

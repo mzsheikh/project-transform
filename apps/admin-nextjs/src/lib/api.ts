@@ -27,7 +27,14 @@ export type FormDto = {
   createdAt: string;
 };
 
-async function req<T>(path: string, init?: RequestInit): Promise<T> {
+export type DataSourcePreviewDto = {
+  key: string;
+  fetchedAt: string;
+  cacheTtlSeconds: number;
+  rows: Record<string, unknown>[];
+};
+
+async function req<T>(path: string, init?: RequestInit, retryOnUnauthorized = true): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     ...init,
     credentials: "include",
@@ -37,6 +44,11 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     },
     // IMPORTANT: remove cache: "no-store" for React Query usage
   });
+
+  if (res.status === 401 && retryOnUnauthorized && !path.startsWith("/auth/")) {
+    await req<{ ok: boolean }>("/auth/refresh", { method: "POST" }, false);
+    return req<T>(path, init, false);
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -86,11 +98,27 @@ export const api = {
       method: "DELETE",
     }),
 
+  previewDataSource: (
+    appCode: string,
+    formKey: string,
+    body: { source: Record<string, unknown>; data?: Record<string, unknown> },
+  ) =>
+    req<DataSourcePreviewDto>(`/apps/${appCode}/forms/${formKey}/datasets/preview`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
   listConnectors: (appCode: string) =>
     req<ConnectorDto[]>(`/apps/${appCode}/connectors`),
 
   createConnector: (appCode: string, body: ConnectorInput) =>
     req<ConnectorDto>(`/apps/${appCode}/connectors`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  testConnectorInput: (appCode: string, body: ConnectorInput) =>
+    req<{ ok: boolean; result: Record<string, unknown> }>(`/apps/${appCode}/connectors/test-config`, {
       method: "POST",
       body: JSON.stringify(body),
     }),

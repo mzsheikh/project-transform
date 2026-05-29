@@ -2,6 +2,7 @@
 
 import type {
   ControlNode,
+  DataSourceDatasetMap,
   FormDefinition,
   LayoutNode,
   MultiSelectProps,
@@ -22,14 +23,15 @@ export type ValidationError = { key: string; message: string };
 
 export function validateFormData(
   form: FormDefinition,
-  data: Record<string, SubmissionDataValue>
+  data: Record<string, SubmissionDataValue>,
+  datasets: DataSourceDatasetMap = {},
 ): ValidationError[] {
-  const calculated = evaluateCalculatedFormData(form, data);
+  const calculated = evaluateCalculatedFormData(form, data, datasets);
   const errors: ValidationError[] = calculated.errors.map((error) => ({
     key: error.key ?? error.path,
     message: error.message,
   }));
-  validateNode(form.root, calculated.data, calculated.data, "", errors);
+  validateNode(form.root, calculated.data, calculated.data, "", errors, datasets);
   return errors;
 }
 
@@ -38,12 +40,13 @@ function validateNode(
   rootData: Record<string, SubmissionDataValue>,
   data: Record<string, SubmissionDataValue>,
   prefix: string,
-  errors: ValidationError[]
+  errors: ValidationError[],
+  datasets: DataSourceDatasetMap,
 ) {
   if (node.type === "control") {
     if (node.controlType === "button") return;
     const props = (node.props ?? {}) as Record<string, unknown>;
-    const state = resolveControlState(node, { rootData, itemData: data });
+    const state = resolveControlState(node, { rootData, itemData: data, datasets });
     const errorKey = prefix ? `${prefix}.${node.key}` : node.key;
     for (const error of state.errors) {
       errors.push({ key: errorKey, message: error.message });
@@ -51,7 +54,7 @@ function validateNode(
     if (!state.visible) return;
     if (state.disabled && props.value === undefined) return;
 
-    const validation = resolveValidation(node, rootData, data, errorKey, errors);
+    const validation = resolveValidation(node, rootData, data, errorKey, errors, datasets);
     const effectiveNode: ControlNode = {
       ...node,
       props: state.props as ControlNode["props"],
@@ -64,11 +67,11 @@ function validateNode(
   }
 
   if (node.layoutType === "repeater") {
-    validateRepeater(node, rootData, data, prefix, errors);
+    validateRepeater(node, rootData, data, prefix, errors, datasets);
     return;
   }
 
-  node.children.forEach((child) => validateNode(child, rootData, data, prefix, errors));
+  node.children.forEach((child) => validateNode(child, rootData, data, prefix, errors, datasets));
 }
 
 function validateRepeater(
@@ -76,7 +79,8 @@ function validateRepeater(
   rootData: Record<string, SubmissionDataValue>,
   data: Record<string, SubmissionDataValue>,
   prefix: string,
-  errors: ValidationError[]
+  errors: ValidationError[],
+  datasets: DataSourceDatasetMap,
 ) {
   const key = node.key ?? node.id;
   const value = data[key];
@@ -95,7 +99,7 @@ function validateRepeater(
 
   items.forEach((item, index) => {
     const childPrefix = `${errorKey}.${index}`;
-    node.children.forEach((child) => validateNode(child, rootData, item, childPrefix, errors));
+    node.children.forEach((child) => validateNode(child, rootData, item, childPrefix, errors, datasets));
   });
 }
 
@@ -176,9 +180,10 @@ function resolveValidation(
   data: Record<string, SubmissionDataValue>,
   errorKey: string,
   errors: ValidationError[],
+  datasets: DataSourceDatasetMap,
 ): ValidationRules | undefined {
   if (!node.validation) return undefined;
-  const resolved = resolveDynamicValue(node.validation, { rootData, itemData: data }, `controls.${node.key}.validation`);
+  const resolved = resolveDynamicValue(node.validation, { rootData, itemData: data, datasets }, `controls.${node.key}.validation`);
   for (const error of resolved.errors) {
     errors.push({ key: errorKey, message: error.message });
   }

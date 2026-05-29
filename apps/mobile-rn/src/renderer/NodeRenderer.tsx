@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef } from "react";
 import { Pressable, Text, View } from "react-native";
 
-import type { LayoutNode, Node } from "@transform/contracts/form-types";
+import type { DataSourceDatasetMap, LayoutNode, Node } from "@transform/contracts/form-types";
 import type { SubmissionDataValue } from "@transform/contracts/submission-types";
 import { resolveControlState } from "@transform/contracts/expressions";
 
@@ -15,6 +15,7 @@ export type NodeRendererProps = {
   node: Node;
   data: FormState;
   rootData?: FormState;
+  datasets?: DataSourceDatasetMap;
   setValue: SetValue;
   errors: Record<string, string>;
   onButtonPress?: ExecuteButtonActions;
@@ -22,23 +23,23 @@ export type NodeRendererProps = {
   rowIndex?: number;
 };
 
-export function NodeRenderer({ node, data, rootData = data, setValue, errors, onButtonPress, errorPrefix = "", rowIndex }: NodeRendererProps) {
+export function NodeRenderer({ node, data, rootData = data, datasets = {}, setValue, errors, onButtonPress, errorPrefix = "", rowIndex }: NodeRendererProps) {
   if (node.type === "layout") {
     if (node.layoutType === "repeater") {
-      return <RepeatSectionRenderer node={node} data={data} rootData={rootData} setValue={setValue} errors={errors} onButtonPress={onButtonPress} errorPrefix={errorPrefix} />;
+      return <RepeatSectionRenderer node={node} data={data} rootData={rootData} datasets={datasets} setValue={setValue} errors={errors} onButtonPress={onButtonPress} errorPrefix={errorPrefix} />;
     }
 
     return (
       <LayoutRenderer
         node={node}
         renderNode={(child) => (
-          <NodeRenderer node={child} data={data} rootData={rootData} setValue={setValue} errors={errors} onButtonPress={onButtonPress} errorPrefix={errorPrefix} rowIndex={rowIndex} />
+          <NodeRenderer node={child} data={data} rootData={rootData} datasets={datasets} setValue={setValue} errors={errors} onButtonPress={onButtonPress} errorPrefix={errorPrefix} rowIndex={rowIndex} />
         )}
       />
     );
   }
 
-  const state = resolveControlState(node, { rootData, itemData: data, rowIndex });
+  const state = resolveControlState(node, { rootData, itemData: data, rowIndex, datasets });
   if (!state.visible) return null;
   const effectiveNode = { ...node, props: state.props };
   const errorKey = errorPrefix ? `${errorPrefix}.${node.key}` : node.key;
@@ -58,6 +59,7 @@ function RepeatSectionRenderer({
   node,
   data,
   rootData,
+  datasets,
   setValue,
   errors,
   onButtonPress,
@@ -66,6 +68,7 @@ function RepeatSectionRenderer({
   node: LayoutNode;
   data: FormState;
   rootData: FormState;
+  datasets: DataSourceDatasetMap;
   setValue: SetValue;
   errors: Record<string, string>;
   onButtonPress?: ExecuteButtonActions;
@@ -143,6 +146,7 @@ function RepeatSectionRenderer({
                   node={child}
                   data={item}
                   rootData={rootData}
+                  datasets={datasets}
                   setValue={itemSetValue}
                   errors={errors}
                   onButtonPress={onButtonPress}

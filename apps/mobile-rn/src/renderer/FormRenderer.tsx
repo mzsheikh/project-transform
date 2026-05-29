@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, Pressable, ScrollView } from "react-native";
 
-import type { ButtonAction, ControlNode, FormDefinition, Node } from "@transform/contracts/form-types";
+import type { ButtonAction, ControlNode, DataSourceDatasetMap, FormDefinition, Node } from "@transform/contracts/form-types";
 
 import type { SubmissionDataValue } from "@transform/contracts/submission-types";
 import { evaluateCalculatedFormData } from "@transform/contracts/expressions";
@@ -14,6 +14,7 @@ import type { FormState } from "./types";
 export type FormRendererProps = {
   form: FormDefinition;
   initialData?: FormState;
+  datasets?: DataSourceDatasetMap;
 
   // Called when user taps Save Draft / Submit
   onSaveDraft?: (data: FormState) => void | Promise<void>;
@@ -28,6 +29,7 @@ type ValidationError = { key: string; message: string };
 export function FormRenderer({
   form,
   initialData,
+  datasets = {},
   onSaveDraft,
   onSubmit,
   onChange,
@@ -37,7 +39,7 @@ export function FormRenderer({
   const [expressionErrors, setExpressionErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    const calculated = evaluateCalculatedFormData(form, data);
+    const calculated = evaluateCalculatedFormData(form, data, datasets);
     const nextExpressionErrors: Record<string, string> = {};
     for (const error of calculated.errors) {
       nextExpressionErrors[error.key ?? error.path] = error.message;
@@ -49,7 +51,7 @@ export function FormRenderer({
       setData(next);
       onChange?.(next);
     }
-  }, [form, data, onChange]);
+  }, [form, data, datasets, onChange]);
 
   function setValue(key: string, value: SubmissionDataValue) {
     setData((prev) => {
@@ -74,7 +76,7 @@ export function FormRenderer({
   }
 
   function validate(): ValidationError[] {
-    return validateFormData(form, data);
+    return validateFormData(form, data, datasets);
   }
 
   async function handleSaveDraft() {
@@ -124,7 +126,7 @@ export function FormRenderer({
       {form.description ? <Text style={styles.description}>{form.description}</Text> : null}
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <NodeRenderer node={form.root} data={data} rootData={data} setValue={setValue} errors={{ ...errors, ...expressionErrors }} onButtonPress={executeButtonActions} />
+        <NodeRenderer node={form.root} data={data} rootData={data} datasets={datasets} setValue={setValue} errors={{ ...errors, ...expressionErrors }} onButtonPress={executeButtonActions} />
       </ScrollView>
 
       {showLegacyFooter ? (

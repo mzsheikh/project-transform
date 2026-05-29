@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -11,13 +11,18 @@ import {
   View,
 } from "react-native";
 
-import type { FormDefinition } from "@transform/contracts/form-types";
+import type { DataSourceDatasetMap, FormDefinition } from "@transform/contracts/form-types";
 import { api, type BootstrapFormItem } from "../api/client";
 import { FormRenderer } from "../renderer/FormRenderer";
 import type { FormState } from "../renderer/types";
 import type { SubmissionPayload } from "@transform/contracts/submission-types";
 import { cryptoLikeId } from "../renderer/renderer-utils";
 import { deleteDraft, listDrafts, saveDraft, type SavedDraft } from "../storage/drafts";
+import {
+  getCachedDatasets,
+  rowsFromDatasetResponse,
+  saveCachedDatasets,
+} from "../storage/datasets";
 
 type Tab = "forms" | "drafts" | "settings";
 
@@ -35,6 +40,9 @@ type Stage =
       drafts: SavedDraft[];
       draftId?: string;
       initialData?: FormState;
+      currentData?: FormState;
+      datasets?: DataSourceDatasetMap;
+      datasetStatus?: string;
     };
 
 export function AppBootstrapScreen() {
@@ -45,6 +53,13 @@ export function AppBootstrapScreen() {
   const [refreshingDrafts, setRefreshingDrafts] = useState(false);
   const [currentDraftId, setCurrentDraftId] = useState<string | undefined>(undefined);
   const [submitting, setSubmitting] = useState(false);
+  const datasetRefreshRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (datasetRefreshRef.current) clearTimeout(datasetRefreshRef.current);
+    };
+  }, []);
 
   const title = useMemo(() => {
     switch (stage.kind) {
@@ -99,7 +114,18 @@ export function AppBootstrapScreen() {
 
     try {
       const form = await api.latestForm(appCode, formKey);
-      setStage({ kind: "renderForm", appCode, formKey, form, forms, drafts });
+      const cached = await getCachedDatasets(appCode, form, {});
+      setStage({
+        kind: "renderForm",
+        appCode,
+        formKey,
+        form,
+        forms,
+        drafts,
+        datasets: rowsFromDatasetResponse(cached),
+        datasetStatus: cached ? "Using cached data" : undefined,
+      });
+      void refreshDatasets(appCode, form, {});
     } catch (e: any) {
       setError(e.message ?? "Failed to load form");
       setStage({ kind: "home", appCode, forms, drafts, activeTab });
@@ -113,6 +139,7 @@ export function AppBootstrapScreen() {
 
     try {
       const form = await api.latestForm(appCode, draft.formKey);
+      const cached = await getCachedDatasets(appCode, form, draft.data);
       setStage({
         kind: "renderForm",
         appCode,
@@ -122,7 +149,11 @@ export function AppBootstrapScreen() {
         drafts,
         draftId: draft.id,
         initialData: draft.data,
+        currentData: draft.data,
+        datasets: rowsFromDatasetResponse(cached),
+        datasetStatus: cached ? "Using cached data" : undefined,
       });
+      void refreshDatasets(appCode, form, draft.data);
     } catch (e: any) {
       setError(e.message ?? "Failed to load draft form");
       setStage({ kind: "home", appCode, forms, drafts, activeTab: "drafts" });
@@ -161,6 +192,43 @@ export function AppBootstrapScreen() {
       drafts: nextDrafts ?? stage.drafts,
       activeTab: "forms",
     });
+  }
+
+  async function refreshDatasets(appCode: string, form: FormDefinition, data: FormState) {
+    if (!Array.isArray(form.dataSources) || form.dataSources.length === 0) return;
+    try {
+      const response = await api.fetchDatasets(appCode, form, data);
+      await saveCachedDatasets(appCode, form, data, response);
+      setStage((current) => (
+        current.kind === "renderForm" && current.appCode === appCode && current.formKey === form.formKey && current.form.version === form.version
+          ? { ...current, datasets: rowsFromDatasetResponse(response), datasetStatus: "Data refreshed" }
+          : current
+      ));
+    } catch (e: any) {
+      setStage((current) => (
+        current.kind === "renderForm" && current.appCode === appCode && current.formKey === form.formKey
+          ? { ...current, datasetStatus: current.datasets && Object.keys(current.datasets).length > 0 ? "Offline cached data" : (e.message ?? "Data unavailable") }
+          : current
+      ));
+    }
+  }
+
+  function scheduleDatasetRefresh(appCode: string, form: FormDefinition, data: FormState) {
+    if (!Array.isArray(form.dataSources) || form.dataSources.length === 0) return;
+    if (datasetRefreshRef.current) clearTimeout(datasetRefreshRef.current);
+    datasetRefreshRef.current = setTimeout(() => {
+      void (async () => {
+        const cached = await getCachedDatasets(appCode, form, data);
+        if (cached) {
+          setStage((current) => (
+            current.kind === "renderForm" && current.appCode === appCode && current.formKey === form.formKey
+              ? { ...current, datasets: rowsFromDatasetResponse(cached), datasetStatus: "Using cached data" }
+              : current
+          ));
+        }
+        await refreshDatasets(appCode, form, data);
+      })();
+    }, 500);
   }
 
   if (stage.kind === "enterAppCode" || stage.kind === "loadingBootstrap") {
@@ -320,6 +388,7 @@ export function AppBootstrapScreen() {
           </Pressable>
 
           <Text style={styles.topBarTitle}>{stage.appCode}</Text>
+          {stage.datasetStatus ? <Text style={styles.datasetStatus}>{stage.datasetStatus}</Text> : null}
         </View>
       </SafeAreaView>
 
@@ -327,6 +396,11 @@ export function AppBootstrapScreen() {
         key={`${stage.formKey}:${stage.draftId ?? "new"}`}
         form={stage.form}
         initialData={stage.initialData}
+        datasets={stage.datasets ?? {}}
+        onChange={(data) => {
+          setStage((current) => (current.kind === "renderForm" ? { ...current, currentData: data } : current));
+          scheduleDatasetRefresh(stage.appCode, stage.form, data);
+        }}
         onSaveDraft={async (data) => {
           const draft = await saveDraft({
             appCode: stage.appCode,
@@ -471,6 +545,7 @@ const styles = StyleSheet.create({
   safeTop: { backgroundColor: "#fff" },
   topBar: { padding: 12, borderBottomWidth: 1, borderColor: "#eee", flexDirection: "row", gap: 10, alignItems: "center" },
   topBarTitle: { fontWeight: "700", marginLeft: "auto" },
+  datasetStatus: { color: "#667085", fontSize: 12 },
   submitOverlay: {
     position: "absolute",
     left: 0,

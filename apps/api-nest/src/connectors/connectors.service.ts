@@ -28,12 +28,7 @@ export class ConnectorsService {
   }
 
   async create(appCode: string, dto: CreateConnectorDto) {
-    if (dto.type === "database" && !dto.provider) {
-      throw new BadRequestException("Database connector requires provider");
-    }
-    if (dto.type === "rest_api" && dto.provider) {
-      throw new BadRequestException("REST API connector cannot set database provider");
-    }
+    this.validateConnectorInput(dto);
 
     const connector = await this.prisma.connector.create({
       data: {
@@ -46,6 +41,23 @@ export class ConnectorsService {
       },
     });
     return this.toPublic(connector);
+  }
+
+  async testConfig(_appCode: string, dto: CreateConnectorDto) {
+    this.validateConnectorInput(dto);
+    const runtime: ConnectorRuntimeConfig = {
+      id: "unsaved",
+      name: dto.name?.trim() || "Unsaved connector",
+      type: dto.type,
+      provider: dto.type === "database" ? dto.provider ?? null : null,
+      config: dto.configJson ?? {},
+      secrets: dto.secretsJson ?? {},
+    };
+    const result =
+      runtime.type === "database"
+        ? await this.factory.database(runtime).test()
+        : await this.factory.rest(runtime).test();
+    return { ok: true, result };
   }
 
   async update(appCode: string, id: string, dto: UpdateConnectorDto) {
@@ -138,6 +150,15 @@ export class ConnectorsService {
     const connector = await this.prisma.connector.findFirst({ where: { appCode, id } });
     if (!connector) throw new NotFoundException("Connector not found");
     return connector;
+  }
+
+  private validateConnectorInput(dto: CreateConnectorDto) {
+    if (dto.type === "database" && !dto.provider) {
+      throw new BadRequestException("Database connector requires provider");
+    }
+    if (dto.type === "rest_api" && dto.provider) {
+      throw new BadRequestException("REST API connector cannot set database provider");
+    }
   }
 
   private toPublic(connector: {

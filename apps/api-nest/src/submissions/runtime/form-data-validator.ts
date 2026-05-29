@@ -1,4 +1,4 @@
-import type { ControlNode, FormDefinition, LayoutNode, Node } from "../../../../../packages/contracts/src/form-types";
+import type { ControlNode, DataSourceDatasetMap, FormDefinition, LayoutNode, Node } from "../../../../../packages/contracts/src/form-types";
 import type { SubmissionDataValue } from "../../../../../packages/contracts/src/submission-types";
 import { evaluateCalculatedFormData } from "../../../../../packages/contracts/src/expressions";
 import { validateFormData } from "../../../../../packages/contracts/src/form-validators";
@@ -8,13 +8,15 @@ type ValidationError = { key: string; message: string };
 export function validateSubmissionData(
   schemaJson: unknown,
   data: Record<string, unknown>,
+  datasets: DataSourceDatasetMap = {},
 ): ValidationError[] {
-  return validateAndNormalizeSubmissionData(schemaJson, data).errors;
+  return validateAndNormalizeSubmissionData(schemaJson, data, datasets).errors;
 }
 
 export function validateAndNormalizeSubmissionData(
   schemaJson: unknown,
   data: Record<string, unknown>,
+  datasets: DataSourceDatasetMap = {},
 ): { data: Record<string, SubmissionDataValue>; errors: ValidationError[] } {
   const form = readFormDefinition(schemaJson);
   if (!form) {
@@ -24,14 +26,14 @@ export function validateAndNormalizeSubmissionData(
     };
   }
 
-  const calculated = evaluateCalculatedFormData(form, data);
+  const calculated = evaluateCalculatedFormData(form, data, datasets);
   const errors: ValidationError[] = calculated.errors.map((error) => ({
     key: error.key ?? error.path,
     message: error.message,
   }));
 
   errors.push(...compareCalculatedValues(form.root, data, calculated.data, ""));
-  errors.push(...validateFormData(form, calculated.data));
+  errors.push(...validateFormData(form, calculated.data, datasets));
 
   return {
     data: calculated.data,

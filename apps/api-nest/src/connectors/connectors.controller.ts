@@ -21,6 +21,11 @@ export class ConnectorsController {
     return this.connectors.create(appCode.toUpperCase(), dto);
   }
 
+  @Post("apps/:appCode/connectors/test-config")
+  testConfig(@Param("appCode") appCode: string, @Body() dto: CreateConnectorDto) {
+    return this.connectors.testConfig(appCode.toUpperCase(), dto);
+  }
+
   @Get("apps/:appCode/connectors/:id")
   get(@Param("appCode") appCode: string, @Param("id") id: string) {
     return this.connectors.get(appCode.toUpperCase(), id);

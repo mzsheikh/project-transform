@@ -1,7 +1,9 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from "@nestjs/common";
 import { FormsService } from "./forms.service";
+import { FormDatasetsService } from "./form-datasets.service";
 import { CreateDraftFormDto } from "./dto/create-draft-form.dto";
 import { UpdateDraftFormDto } from "./dto/update-draft-form.dto";
+import { FetchFormDatasetsDto, PreviewFormDataSourceDto } from "./dto/fetch-form-datasets.dto";
 import { JwtAuthGuard } from "../auth/jwt.guard";
 import { RolesGuard } from "../auth/roles.guard";
 import { Roles } from "../auth/roles.decorator";
@@ -9,7 +11,10 @@ import { AiServiceGuard } from "../auth/ai-service.guard";
 
 @Controller()
 export class FormsController {
-  constructor(private readonly forms: FormsService) {}
+  constructor(
+    private readonly forms: FormsService,
+    private readonly datasets: FormDatasetsService,
+  ) {}
 
   @Get("apps/:appCode/forms")
   list(@Param("appCode") appCode: string) {
@@ -65,6 +70,25 @@ export class FormsController {
   @Get("apps/:appCode/forms/:formKey/latest")
   latest(@Param("appCode") appCode: string, @Param("formKey") formKey: string) {
     return this.forms.latestPublished(appCode.toUpperCase(), formKey);
+  }
+
+  @Post("apps/:appCode/forms/:formKey/datasets")
+  fetchDatasets(
+    @Param("appCode") appCode: string,
+    @Param("formKey") formKey: string,
+    @Body() dto: FetchFormDatasetsDto,
+  ) {
+    return this.datasets.fetchPublished(appCode.toUpperCase(), formKey, dto);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("editor")
+  @Post("apps/:appCode/forms/:formKey/datasets/preview")
+  previewDataSource(
+    @Param("appCode") appCode: string,
+    @Body() dto: PreviewFormDataSourceDto,
+  ) {
+    return this.datasets.previewSource(appCode.toUpperCase(), dto);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

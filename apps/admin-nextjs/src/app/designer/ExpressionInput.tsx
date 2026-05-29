@@ -7,9 +7,10 @@ export type ExpressionFieldInfo = {
   key: string;
   label?: string;
   controlType?: string;
+  source?: "field" | "dataset";
 };
 
-type SuggestionKind = "field" | "function" | "keyword" | "operator";
+type SuggestionKind = "field" | "dataset" | "function" | "keyword" | "operator";
 
 type ExpressionSuggestion = {
   kind: SuggestionKind;
@@ -37,6 +38,15 @@ const FUNCTION_SUGGESTIONS: ExpressionSuggestion[] = [
   fn("ITEM", "ITEM(\"\")", "ITEM(key)", "Read a value from the current repeater row.", -2),
   fn("ITEMS", "ITEMS(\"\", \"\")", "ITEMS(repeaterKey, fieldKey)", "Read a list of values from repeater rows.", -6),
   fn("ROW", "ROW()", "ROW()", "Current repeater row number."),
+  fn("DATA", "DATA(\"\")", "DATA(dataSourceKey)", "Read cached rows from a form data source.", -2),
+  fn("FIRST", "FIRST()", "FIRST(list)", "Return the first row or blank.", -1),
+  fn("FILTER", "FILTER()", "FILTER(rows, field, value)", "Filter rows where a field equals a value.", -1),
+  fn("LOOKUP", "LOOKUP()", "LOOKUP(rows, keyField, keyValue, returnField)", "Find one row and return one field.", -1),
+  fn("PLUCK", "PLUCK()", "PLUCK(rows, field)", "Read one field from every row.", -1),
+  fn("OPTION_LABEL", "OPTION_LABEL()", "OPTION_LABEL(rows, keyField, keyValue, labelField)", "Resolve a selected value to display text.", -1),
+  fn("PATH", "PATH()", "PATH(object, path)", "Read a nested object path safely.", -1),
+  fn("SORT", "SORT()", "SORT(rows, field)", "Sort rows by a field.", -1),
+  fn("TAKE", "TAKE()", "TAKE(rows, count)", "Return the first N rows.", -1),
   fn("SUM", "SUM()", "SUM(value, ...)", "Add numeric values.", -1),
   fn("AVG", "AVG()", "AVG(value, ...)", "Average numeric values.", -1),
   fn("MIN", "MIN()", "MIN(value, ...)", "Smallest numeric value.", -1),
@@ -274,11 +284,21 @@ function fieldSuggestions(fields: ExpressionFieldInfo[]): ExpressionSuggestion[]
   const seen = new Set<string>();
   return fields
     .filter((field) => {
-      if (!field.key || seen.has(field.key)) return false;
-      seen.add(field.key);
+      const seenKey = `${field.source ?? "field"}:${field.key}`;
+      if (!field.key || seen.has(seenKey)) return false;
+      seen.add(seenKey);
       return true;
     })
     .map((field) => {
+      if (field.source === "dataset") {
+        return {
+          kind: "dataset" as const,
+          label: field.label ? `${field.key} - ${field.label}` : field.key,
+          insert: `DATA("${escapeFormulaText(field.key)}")`,
+          detail: "dataset",
+          description: "Insert DATA() reference for this form data source.",
+        };
+      }
       const bareIdentifier = /^[A-Za-z_][A-Za-z0-9_]*$/.test(field.key);
       const insert = bareIdentifier ? field.key : `FIELD("${escapeFormulaText(field.key)}")`;
       const label = field.label ? `${field.key} - ${field.label}` : field.key;
@@ -298,6 +318,7 @@ function escapeFormulaText(value: string): string {
 
 function kindStyle(kind: SuggestionKind): CSSProperties {
   if (kind === "field") return { background: "#eef4ff", color: "#175cd3" };
+  if (kind === "dataset") return { background: "#f0f9ff", color: "#026aa2" };
   if (kind === "function") return { background: "#ecfdf3", color: "#067647" };
   if (kind === "keyword") return { background: "#fff6ed", color: "#c4320a" };
   return { background: "#f2f4f7", color: "#475467" };

@@ -4,13 +4,15 @@ import { PrismaService } from "../prisma/prisma.service";
 import { CreateSubmissionDto } from "./dto/create-submission.dto";
 import { validateAndNormalizeSubmissionData } from "./runtime/form-data-validator";
 import { SubmissionActionRunnerService } from "./submission-action-runner.service";
-import type { FormDefinition, Node } from "../../../../packages/contracts/src/form-types";
+import { FormDatasetsService } from "../forms/form-datasets.service";
+import type { DataSourceDatasetMap, FormDefinition, Node } from "../../../../packages/contracts/src/form-types";
 
 @Injectable()
 export class SubmissionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly runner: SubmissionActionRunnerService,
+    private readonly datasets: FormDatasetsService,
   ) {}
 
   async submit(appCode: string, formKey: string, dto: CreateSubmissionDto) {
@@ -36,9 +38,11 @@ export class SubmissionsService {
       where: { appCode, formKey, version: dto.formVersion, status: "published" },
     });
     if (!form) throw new NotFoundException("Published form version not found");
-    const triggerKey = this.resolveTriggerKey(form.schemaJson as unknown as FormDefinition, dto.triggerKey);
+    const schema = form.schemaJson as unknown as FormDefinition;
+    const triggerKey = this.resolveTriggerKey(schema, dto.triggerKey);
+    const datasetRows = await this.fetchDatasetRows(appCode, formKey, schema, dto);
 
-    const validation = validateAndNormalizeSubmissionData(form.schemaJson, dto.data);
+    const validation = validateAndNormalizeSubmissionData(form.schemaJson, dto.data, datasetRows);
     const errors = validation.errors;
     if (errors.length > 0) {
       throw new BadRequestException({ message: "Submission validation failed", errors });
@@ -176,5 +180,16 @@ export class SubmissionsService {
       return;
     }
     node.children.forEach((child) => this.collectButtonKeys(child, keys));
+  }
+
+  private async fetchDatasetRows(appCode: string, formKey: string, schema: FormDefinition, dto: CreateSubmissionDto): Promise<DataSourceDatasetMap> {
+    if (!Array.isArray(schema.dataSources) || schema.dataSources.length === 0) return {};
+    const payload = await this.datasets.fetchPublished(appCode, formKey, {
+      formVersion: dto.formVersion,
+      data: dto.data,
+    });
+    return Object.fromEntries(
+      Object.entries(payload.datasets).map(([key, dataset]) => [key, dataset.rows]),
+    );
   }
 }

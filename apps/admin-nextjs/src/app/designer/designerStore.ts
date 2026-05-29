@@ -217,6 +217,7 @@ export type DesignerState = {
   canRedo: () => boolean;
 
   updateNode: (id: string, patch: Partial<LayoutNode> | Partial<ControlNode>) => void;
+  updateSchema: (patch: Partial<FormDefinition>) => void;
   removeNode: (id: string) => void;
   moveNode: (id: string, parentLayoutId: string, insertIndex: number) => void;
   duplicateNode: (id: string) => void;
@@ -299,6 +300,17 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
       },
     };
 
+    set((state) => ({
+      schema: next,
+      history: pushHistory(cur, state.history),
+      dirty: true,
+    }));
+  },
+
+  updateSchema: (patch) => {
+    const cur = get().schema;
+    if (!cur) return;
+    const next: FormDefinition = { ...cur, ...patch };
     set((state) => ({
       schema: next,
       history: pushHistory(cur, state.history),

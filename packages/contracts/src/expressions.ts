@@ -1,4 +1,12 @@
-import type { ControlNode, ControlType, FormDefinition, LayoutNode, Node } from "./form-types";
+import type {
+  ControlNode,
+  ControlType,
+  DataSourceDatasetMap,
+  DataSourceDefinition,
+  FormDefinition,
+  LayoutNode,
+  Node,
+} from "./form-types";
 import type { SubmissionDataValue } from "./submission-types";
 
 export type ExpressionValue =
@@ -28,6 +36,7 @@ export type ExpressionContext = {
   itemData?: Record<string, unknown>;
   rowIndex?: number;
   today?: Date;
+  datasets?: DataSourceDatasetMap;
 };
 
 export type ResolvedControlState = {
@@ -56,6 +65,7 @@ type AstNode =
 
 type Dependency =
   | { key: string; kind: "field" | "root" | "item" }
+  | { key: string; kind: "dataset" }
   | { key: string; kind: "repeater" }
   | { key: string; kind: "repeaterField"; repeaterKey: string };
 
@@ -170,6 +180,7 @@ export function resolveControlState(node: ControlNode, context: ExpressionContex
 export function evaluateCalculatedFormData(
   form: FormDefinition,
   inputData: Record<string, unknown>,
+  datasets: DataSourceDatasetMap = {},
 ): { data: Record<string, SubmissionDataValue>; errors: ExpressionRuntimeError[] } {
   const data = cloneRecord(inputData) as Record<string, SubmissionDataValue>;
   const errors: ExpressionRuntimeError[] = [];
@@ -177,7 +188,7 @@ export function evaluateCalculatedFormData(
 
   for (let i = 0; i < iterations; i += 1) {
     const before = stableJson(data);
-    applyNodeExpressions(form.root, data, data, errors, undefined, undefined);
+    applyNodeExpressions(form.root, data, data, errors, undefined, undefined, datasets);
     if (stableJson(data) === before) break;
   }
 
@@ -192,9 +203,39 @@ export function validateFormExpressions(form: FormDefinition): ExpressionIssue[]
       message: "Form schema root is invalid.",
     }];
   }
-  const registry = buildRegistry(form.root);
+  const dataSourceIssues = validateDataSources(form.dataSources);
+  const registry = buildRegistry(form.root, new Set(readDataSources(form.dataSources).map((source) => source.key)));
   const issues: ExpressionIssue[] = [];
   const valueDependencies = new Map<string, Set<string>>();
+  issues.push(...dataSourceIssues);
+
+  readDataSources(form.dataSources).forEach((source, index) => {
+    collectExpressionProps(source.params ?? {}, `dataSources.${index}.params`).forEach(({ expression, path }) => {
+      let ast: AstNode;
+      try {
+        ast = parseFormula(expression);
+      } catch (error) {
+        issues.push({
+          code: "expression.syntax",
+          path,
+          expression,
+          message: error instanceof Error ? error.message : "Expression is invalid.",
+        });
+        return;
+      }
+
+      for (const dependency of collectDependencies(ast)) {
+        if (!dependencyExists(dependency, registry)) {
+          issues.push({
+            code: "expression.missingReference",
+            path,
+            expression,
+            message: `Expression references unknown ${dependency.kind} "${dependency.key}".`,
+          });
+        }
+      }
+    });
+  });
 
   walkNodes(form.root, (node, path) => {
     if (node.type !== "control") return;
@@ -263,6 +304,122 @@ export function validateFormExpressions(form: FormDefinition): ExpressionIssue[]
   return dedupeIssues(issues);
 }
 
+function validateDataSources(value: unknown): ExpressionIssue[] {
+  const sources = readDataSources(value);
+  const issues: ExpressionIssue[] = [];
+  const seen = new Set<string>();
+
+  if (value !== undefined && !Array.isArray(value)) {
+    return [{
+      code: "dataSource.invalidList",
+      path: "dataSources",
+      message: "Form dataSources must be an array.",
+    }];
+  }
+
+  sources.forEach((source, index) => {
+    const path = `dataSources.${index}`;
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(source.key)) {
+      issues.push({
+        code: "dataSource.invalidKey",
+        path: `${path}.key`,
+        message: `Data source key "${source.key}" must be a valid expression identifier.`,
+      });
+    }
+    if (seen.has(source.key)) {
+      issues.push({
+        code: "dataSource.duplicateKey",
+        path: `${path}.key`,
+        message: `Data source key "${source.key}" is duplicated.`,
+      });
+    }
+    seen.add(source.key);
+
+    if (!source.connectorId || typeof source.connectorId !== "string") {
+      issues.push({
+        code: "dataSource.missingConnector",
+        path: `${path}.connectorId`,
+        message: `Data source "${source.key}" must reference a connector.`,
+      });
+    }
+
+    if (
+      source.cacheTtlSeconds !== undefined &&
+      (!Number.isFinite(source.cacheTtlSeconds) || source.cacheTtlSeconds < 0)
+    ) {
+      issues.push({
+        code: "dataSource.invalidCacheTtl",
+        path: `${path}.cacheTtlSeconds`,
+        message: `Data source "${source.key}" cache TTL must be zero or greater.`,
+      });
+    }
+
+    if (source.type === "database") {
+      const query = source.config?.query;
+      if (typeof query !== "string" || !query.trim()) {
+        issues.push({
+          code: "dataSource.missingQuery",
+          path: `${path}.config.query`,
+          message: `Database data source "${source.key}" must define a query.`,
+        });
+      } else if (!isReadOnlySql(query)) {
+        issues.push({
+          code: "dataSource.unsafeQuery",
+          path: `${path}.config.query`,
+          message: `Database data source "${source.key}" query must be a single read-only SELECT or WITH query.`,
+        });
+      }
+      const limit = source.config?.limit;
+      if (limit !== undefined && (!Number.isFinite(limit) || limit <= 0 || limit > 5000)) {
+        issues.push({
+          code: "dataSource.invalidLimit",
+          path: `${path}.config.limit`,
+          message: `Database data source "${source.key}" limit must be between 1 and 5000.`,
+        });
+      }
+    } else if (source.type === "rest_api") {
+      if (typeof source.config?.pathTemplate !== "string" || !source.config.pathTemplate.trim()) {
+        issues.push({
+          code: "dataSource.missingPathTemplate",
+          path: `${path}.config.pathTemplate`,
+          message: `REST data source "${source.key}" must define a pathTemplate.`,
+        });
+      }
+      if (
+        source.config?.method !== undefined &&
+        !["GET", "POST", "PUT", "PATCH", "DELETE"].includes(String(source.config.method).toUpperCase())
+      ) {
+        issues.push({
+          code: "dataSource.invalidMethod",
+          path: `${path}.config.method`,
+          message: `REST data source "${source.key}" method is invalid.`,
+        });
+      }
+    } else {
+      issues.push({
+        code: "dataSource.invalidType",
+        path: `${path}.type`,
+        message: "Data source type is invalid.",
+      });
+    }
+  });
+
+  return issues;
+}
+
+function readDataSources(value: unknown): DataSourceDefinition[] {
+  return Array.isArray(value)
+    ? value.filter((source): source is DataSourceDefinition => isRecord(source) && typeof source.key === "string")
+    : [];
+}
+
+function isReadOnlySql(query: string): boolean {
+  const normalized = query.trim().replace(/\s+/g, " ").toLowerCase();
+  if (!normalized || normalized.includes(";") || normalized.includes("--") || normalized.includes("/*")) return false;
+  if (!/^(select|with)\b/.test(normalized)) return false;
+  return !/\b(insert|update|delete|drop|alter|truncate|create|merge|grant|revoke|call|execute|exec)\b/.test(normalized);
+}
+
 function validateButtonActions(
   props: Record<string, unknown>,
   path: string,
@@ -318,6 +475,9 @@ function validateButtonActions(
 
 export function formHasExpressions(form: FormDefinition): boolean {
   let found = false;
+  if (readDataSources(form.dataSources).some((source, index) => collectExpressionProps(source.params ?? {}, `dataSources.${index}.params`).length > 0)) {
+    return true;
+  }
   walkNodes(form.root, (node) => {
     if (found || node.type !== "control") return;
     found =
@@ -338,10 +498,11 @@ function applyNodeExpressions(
   errors: ExpressionRuntimeError[],
   rowIndex: number | undefined,
   errorPrefix: string | undefined,
+  datasets: DataSourceDatasetMap,
 ) {
   if (node.type === "control") {
     if (node.controlType === "button") return;
-    applyControlExpressions(node, rootData, scopeData, errors, rowIndex, errorPrefix);
+    applyControlExpressions(node, rootData, scopeData, errors, rowIndex, errorPrefix, datasets);
     return;
   }
 
@@ -352,14 +513,14 @@ function applyNodeExpressions(
     current.forEach((item, index) => {
       if (!isRecord(item)) return;
       node.children.forEach((child) => {
-        applyNodeExpressions(child, rootData, item, errors, index, errorPrefix ? `${errorPrefix}.${index}` : `${repeaterKey}.${index}`);
+        applyNodeExpressions(child, rootData, item, errors, index, errorPrefix ? `${errorPrefix}.${index}` : `${repeaterKey}.${index}`, datasets);
       });
     });
     return;
   }
 
   node.children.forEach((child) => {
-    applyNodeExpressions(child, rootData, scopeData, errors, rowIndex, errorPrefix);
+    applyNodeExpressions(child, rootData, scopeData, errors, rowIndex, errorPrefix, datasets);
   });
 }
 
@@ -370,12 +531,14 @@ function applyControlExpressions(
   errors: ExpressionRuntimeError[],
   rowIndex: number | undefined,
   errorPrefix: string | undefined,
+  datasets: DataSourceDatasetMap,
 ) {
   const props = isRecord(node.props) ? node.props : {};
   const context: ExpressionContext = {
     rootData,
     itemData: scopeData,
     rowIndex,
+    datasets,
   };
   const target = scopeData as Record<string, unknown>;
   const errorKey = errorPrefix ? `${errorPrefix}.${node.key}` : node.key;
@@ -847,6 +1010,55 @@ function evaluateCall(node: Extract<AstNode, { kind: "call" }>, context: Express
     case "ROW":
       requireArgCount(name, node.args, 0, 0);
       return typeof context.rowIndex === "number" ? context.rowIndex + 1 : null;
+    case "DATA":
+      requireArgCount(name, node.args, 1, 1);
+      return context.datasets?.[String(args[0] ?? "")] ?? [];
+    case "FIRST": {
+      requireArgCount(name, node.args, 1, 1);
+      const rows = asList(args[0]);
+      return rows[0] ?? null;
+    }
+    case "FILTER": {
+      requireArgCount(name, node.args, 3, 3);
+      const rows = asRowList(args[0]);
+      const field = String(args[1] ?? "");
+      const expected = args[2];
+      return rows.filter((row) => compareEqual(readPath(row, field), expected));
+    }
+    case "LOOKUP": {
+      requireArgCount(name, node.args, 4, 4);
+      const rows = asRowList(args[0]);
+      const keyField = String(args[1] ?? "");
+      const keyValue = args[2];
+      const returnField = String(args[3] ?? "");
+      const row = rows.find((item) => compareEqual(readPath(item, keyField), keyValue));
+      return row ? readPath(row, returnField) ?? null : null;
+    }
+    case "PLUCK": {
+      requireArgCount(name, node.args, 2, 2);
+      const field = String(args[1] ?? "");
+      return asRowList(args[0]).map((row) => readPath(row, field) ?? null);
+    }
+    case "OPTION_LABEL": {
+      requireArgCount(name, node.args, 4, 4);
+      const rows = asRowList(args[0]);
+      const keyField = String(args[1] ?? "");
+      const keyValue = args[2];
+      const labelField = String(args[3] ?? "");
+      const row = rows.find((item) => compareEqual(readPath(item, keyField), keyValue));
+      return row ? toText(readPath(row, labelField)) : null;
+    }
+    case "PATH":
+      requireArgCount(name, node.args, 2, 2);
+      return readPath(args[0], String(args[1] ?? "")) ?? null;
+    case "SORT": {
+      requireArgCount(name, node.args, 2, 2);
+      const field = String(args[1] ?? "");
+      return [...asRowList(args[0])].sort((left, right) => compareOrder(readPath(left, field), readPath(right, field)));
+    }
+    case "TAKE":
+      requireArgCount(name, node.args, 2, 2);
+      return asList(args[0]).slice(0, Math.max(0, Math.floor(toNumber(args[1]))));
     case "SUM":
       return flatten(args).reduce<number>((sum, value) => sum + toNumber(value), 0);
     case "AVG": {
@@ -965,6 +1177,9 @@ function evaluateCall(node: Extract<AstNode, { kind: "call" }>, context: Express
       requireArgCount(name, node.args, 2, 3);
       return { label: toText(args[0]), value: toText(args[1]), ...(args[2] === undefined ? {} : { disabled: toBoolean(args[2]) }) };
     case "OPTIONS":
+      if (Array.isArray(args[0]) && typeof args[1] === "string" && typeof args[2] === "string") {
+        return buildOptionsFromRows(args[0], args[1], args[2], typeof args[3] === "string" ? args[3] : undefined);
+      }
       return buildOptions(args);
     default:
       throw new ExpressionEvaluationError(`Unsupported function "${name}".`);
@@ -1017,6 +1232,8 @@ function collectDependencies(ast: AstNode): Dependency[] {
       else if (node.name === "ITEMS" && first && second) {
         dependencies.push({ key: first, kind: "repeater" });
         dependencies.push({ key: second, kind: "repeaterField", repeaterKey: first });
+      } else if (node.name === "DATA" && first) {
+        dependencies.push({ key: first, kind: "dataset" });
       } else {
         node.args.forEach(walk);
       }
@@ -1031,7 +1248,7 @@ function literalString(node: AstNode | undefined): string | undefined {
   return node?.kind === "literal" && typeof node.value === "string" ? node.value : undefined;
 }
 
-function buildRegistry(root: LayoutNode) {
+function buildRegistry(root: LayoutNode, dataSourceKeys = new Set<string>()) {
   const controlKeys = new Set<string>();
   const repeaterKeys = new Set<string>();
   const repeaterFields = new Map<string, Set<string>>();
@@ -1052,13 +1269,14 @@ function buildRegistry(root: LayoutNode) {
   }
 
   walk(root);
-  return { controlKeys, repeaterKeys, repeaterFields };
+  return { controlKeys, repeaterKeys, repeaterFields, dataSourceKeys };
 }
 
 function dependencyExists(
   dependency: Dependency,
   registry: ReturnType<typeof buildRegistry>,
 ): boolean {
+  if (dependency.kind === "dataset") return registry.dataSourceKeys.has(dependency.key);
   if (dependency.kind === "repeater") return registry.repeaterKeys.has(dependency.key);
   if (dependency.kind === "repeaterField") {
     return registry.repeaterFields.get(dependency.repeaterKey)?.has(dependency.key) ?? registry.controlKeys.has(dependency.key);
@@ -1169,6 +1387,27 @@ function flatten(values: unknown[]): unknown[] {
   return out;
 }
 
+function asList(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function asRowList(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value) ? value.filter(isRecord) : [];
+}
+
+function readPath(value: unknown, path: string): unknown {
+  if (!path) return value;
+  return path.split(".").reduce<unknown>((current, segment) => {
+    if (current === null || current === undefined) return undefined;
+    if (Array.isArray(current)) {
+      const index = Number(segment);
+      return Number.isInteger(index) ? current[index] : undefined;
+    }
+    if (!isRecord(current)) return undefined;
+    return current[segment];
+  }, value);
+}
+
 function requireArgCount(name: string, args: AstNode[], min: number, max?: number) {
   if (args.length < min || (max !== undefined && args.length > max)) {
     const expected = max === undefined || max !== min ? `${min}${max === undefined ? "+" : `-${max}`}` : `${min}`;
@@ -1247,6 +1486,19 @@ function buildOptions(args: unknown[]): Array<{ label: string; value: string; di
     options.push({ label: toText(args[i]), value: toText(args[i + 1] ?? args[i]) });
   }
   return options;
+}
+
+function buildOptionsFromRows(
+  value: unknown[],
+  labelField: string,
+  valueField: string,
+  disabledField?: string,
+): Array<{ label: string; value: string; disabled?: boolean }> {
+  return value.filter(isRecord).map((row) => ({
+    label: toText(readPath(row, labelField)),
+    value: toText(readPath(row, valueField)),
+    ...(disabledField ? { disabled: toBoolean(readPath(row, disabledField)) } : {}),
+  }));
 }
 
 function isOptionLike(value: unknown): value is Record<string, unknown> {

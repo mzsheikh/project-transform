@@ -2,6 +2,8 @@ import { API_BASE_URL } from "../config";
 import type { FormDefinition } from "@transform/contracts/form-types";
 import type { SubmissionAcceptedResponse } from "@transform/contracts/action-types";
 import type { SubmissionPayload } from "@transform/contracts/submission-types";
+import type { FormState } from "../renderer/types";
+import type { DatasetFetchResponse } from "../storage/datasets";
 
 export type BootstrapFormItem = {
   formKey: string;
@@ -57,6 +59,18 @@ export const api = {
           data: payload.data,
           createdAt: payload.createdAt,
           updatedAt: payload.updatedAt,
+        }),
+      },
+    ),
+
+  fetchDatasets: (appCode: string, form: FormDefinition, data: FormState) =>
+    req<DatasetFetchResponse>(
+      `/apps/${encodeURIComponent(appCode)}/forms/${encodeURIComponent(form.formKey)}/datasets`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          formVersion: form.version,
+          data,
         }),
       },
     ),

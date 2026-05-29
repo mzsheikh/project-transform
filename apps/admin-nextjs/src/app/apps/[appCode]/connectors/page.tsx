@@ -44,6 +44,7 @@ export default function ConnectorsPage() {
   const [secretsText, setSecretsText] = useState(databaseSecrets);
   const [ddlText, setDdlText] = useState(ddlExample);
   const [status, setStatus] = useState("");
+  const [createResult, setCreateResult] = useState<unknown>(null);
   const [result, setResult] = useState<unknown>(null);
 
   function changeType(nextType: ConnectorType) {
@@ -59,15 +60,9 @@ export default function ConnectorsPage() {
 
   async function createConnector() {
     setStatus("Creating connector...");
-    setResult(null);
+    setCreateResult(null);
     try {
-      const body: ConnectorInput = {
-        name: name.trim(),
-        type,
-        provider: type === "database" ? provider : null,
-        configJson: parseJsonObject(configText, "config"),
-        secretsJson: parseJsonObject(secretsText, "secrets"),
-      };
+      const body = connectorInput(true);
       await api.createConnector(appCode, body);
       setName("");
       setStatus("Connector created");
@@ -75,6 +70,30 @@ export default function ConnectorsPage() {
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Failed to create connector");
     }
+  }
+
+  async function testNewConnector() {
+    setStatus("Testing connection...");
+    setCreateResult(null);
+    try {
+      const next = await api.testConnectorInput(appCode, connectorInput(false));
+      setCreateResult(next);
+      setStatus("Connection test complete");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Connection test failed");
+    }
+  }
+
+  function connectorInput(requireName: boolean): ConnectorInput {
+    const trimmedName = name.trim();
+    if (requireName && !trimmedName) throw new Error("Name is required");
+    return {
+      name: trimmedName || "Unsaved connector",
+      type,
+      provider: type === "database" ? provider : null,
+      configJson: parseJsonObject(configText, "config"),
+      secretsJson: parseJsonObject(secretsText, "secrets"),
+    };
   }
 
   async function runAction(label: string, fn: () => Promise<unknown>) {
@@ -137,8 +156,18 @@ export default function ConnectorsPage() {
             Secrets JSON
             <textarea value={secretsText} onChange={(event) => setSecretsText(event.target.value)} style={textareaSmall} />
           </label>
-          <button type="submit" style={primaryButton} disabled={!name.trim()}>Create connector</button>
+          <div style={formActions}>
+            <button
+              type="button"
+              style={secondaryButton}
+              onClick={() => void testNewConnector()}
+            >
+              Test connection
+            </button>
+            <button type="submit" style={primaryButton} disabled={!name.trim()}>Create connector</button>
+          </div>
           {status ? <p style={statusText}>{status}</p> : null}
+          {createResult ? <pre style={pre}>{JSON.stringify(createResult, null, 2)}</pre> : null}
         </form>
 
         <section style={panel}>
@@ -217,6 +246,7 @@ const fieldLabel: React.CSSProperties = { display: "grid", gap: 6, fontWeight: 7
 const input: React.CSSProperties = { border: "1px solid #d0d5dd", borderRadius: 8, padding: "10px 12px", font: "inherit" };
 const textarea: React.CSSProperties = { ...input, minHeight: 220, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 12 };
 const textareaSmall: React.CSSProperties = { ...textarea, minHeight: 110 };
+const formActions: React.CSSProperties = { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" };
 const primaryButton: React.CSSProperties = { border: 0, borderRadius: 8, background: "#111", color: "#fff", padding: "10px 12px", fontWeight: 700, cursor: "pointer" };
 const secondaryButton: React.CSSProperties = { border: "1px solid #d0d5dd", borderRadius: 8, background: "#fff", color: "#111", padding: "10px 12px", fontWeight: 700, cursor: "pointer" };
 const dangerButton: React.CSSProperties = { ...secondaryButton, color: "#b42318", border: "1px solid #f0c7c2" };

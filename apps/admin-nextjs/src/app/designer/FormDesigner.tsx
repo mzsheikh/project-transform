@@ -9,6 +9,7 @@ import { Toolbox, type ToolboxItem } from "./Toolbox";
 import { CanvasTree } from "./CanvasTree";
 import type { ExpressionFieldInfo } from "./ExpressionInput";
 import { PropertiesPanel } from "./PropertiesPanel";
+import { DataSourcesPanel } from "./DataSourcesPanel";
 import { ButtonActionConfigDialog } from "./SubmitActionsPanel";
 import { useDesignerStore } from "./designerStore";
 import { api } from "../../lib/api";
@@ -28,6 +29,7 @@ export function FormDesigner({
   const [status, setStatus] = useState<string>("");
   const [toolboxCollapsed, setToolboxCollapsed] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [dataSourcesOpen, setDataSourcesOpen] = useState(false);
   const [buttonActionConfig, setButtonActionConfig] = useState<{ buttonKey: string; actionId: string } | null>(null);
   const [saveMenuOpen, setSaveMenuOpen] = useState(false);
   const [zoom, setZoom] = useState(1);
@@ -41,6 +43,7 @@ export function FormDesigner({
   const init = useDesignerStore((s) => s.init);
   const select = useDesignerStore((s) => s.select);
   const updateNode = useDesignerStore((s) => s.updateNode);
+  const updateSchema = useDesignerStore((s) => s.updateSchema);
   const removeNode = useDesignerStore((s) => s.removeNode);
   const moveNode = useDesignerStore((s) => s.moveNode);
   const duplicateNode = useDesignerStore((s) => s.duplicateNode);
@@ -71,7 +74,7 @@ export function FormDesigner({
     if (!schema || !selectedId) return ["root"];
     return getNodePath(schema.root, selectedId) ?? ["root"];
   }, [schema, selectedId]);
-  const expressionFields = useMemo(() => (schema ? collectExpressionFields(schema.root) : []), [schema]);
+  const expressionFields = useMemo(() => (schema ? collectExpressionFields(schema) : []), [schema]);
 
   const saveDraft = useSaveDraft(appCode, formKey);
   const publish = usePublish(appCode, formKey);
@@ -232,6 +235,7 @@ export function FormDesigner({
         </div>
 
         <div style={toolbar}>
+          <ToolbarButton label="Data Sources" icon={<DatabaseIcon />} onClick={() => setDataSourcesOpen(true)} />
           <ToolbarButton label="Preview" icon={<EyeIcon />} active onClick={() => setPreviewOpen(true)} />
           <ToolbarButton label="Undo" icon={<UndoIcon />} disabled={!canUndo} onClick={() => { undo(); setStatus(""); }} />
           <ToolbarButton label="Redo" icon={<RedoIcon />} disabled={!canRedo} onClick={() => { redo(); setStatus(""); }} />
@@ -348,6 +352,19 @@ export function FormDesigner({
           onClose={() => setButtonActionConfig(null)}
         />
       ) : null}
+
+      {dataSourcesOpen ? (
+        <DataSourcesPanel
+          appCode={appCode}
+          formKey={formKey}
+          dataSources={schema.dataSources ?? []}
+          onChange={(dataSources) => {
+            updateSchema({ dataSources });
+            setStatus("");
+          }}
+          onClose={() => setDataSourcesOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -388,7 +405,7 @@ function isServerButtonActionType(type: string): type is Exclude<ButtonAction["t
   return type === "email_pdf" || type === "database" || type === "rest_api";
 }
 
-function collectExpressionFields(root: LayoutNode): ExpressionFieldInfo[] {
+function collectExpressionFields(form: FormDefinition): ExpressionFieldInfo[] {
   const fields: ExpressionFieldInfo[] = [];
   const seen = new Set<string>();
 
@@ -408,7 +425,17 @@ function collectExpressionFields(root: LayoutNode): ExpressionFieldInfo[] {
     node.children.forEach(walk);
   }
 
-  walk(root);
+  walk(form.root);
+  (form.dataSources ?? []).forEach((source) => {
+    if (!source.key || seen.has(`dataset:${source.key}`)) return;
+    seen.add(`dataset:${source.key}`);
+    fields.push({
+      key: source.key,
+      label: source.type === "database" ? "Database data source" : "REST data source",
+      controlType: source.type,
+      source: "dataset",
+    });
+  });
   return fields;
 }
 
@@ -751,6 +778,10 @@ const previewRepeaterHeader: React.CSSProperties = { display: "flex", justifyCon
 const previewRepeatButton: React.CSSProperties = { border: "1px solid #111", borderRadius: 10, background: "#fff", padding: "10px 12px", fontWeight: 800 };
 
 const iconStyle: React.CSSProperties = { width: 24, height: 24, display: "block" };
+
+function DatabaseIcon() {
+  return <svg viewBox="0 0 24 24" style={iconStyle} aria-hidden><ellipse cx="12" cy="5" rx="7" ry="3" stroke="currentColor" strokeWidth="2" fill="none" /><path d="M5 5v7c0 1.7 3.1 3 7 3s7-1.3 7-3V5" stroke="currentColor" strokeWidth="2" fill="none" /><path d="M5 12v7c0 1.7 3.1 3 7 3s7-1.3 7-3v-7" stroke="currentColor" strokeWidth="2" fill="none" /></svg>;
+}
 
 function EyeIcon() {
   return <svg viewBox="0 0 24 24" style={iconStyle} aria-hidden><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" stroke="currentColor" strokeWidth="2" fill="none" /><circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2" fill="none" /></svg>;

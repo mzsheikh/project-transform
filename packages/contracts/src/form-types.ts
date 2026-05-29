@@ -8,6 +8,40 @@ export type ExpressionString = `=${string}`;
 export type DynamicValue<T> = T | ExpressionString;
 
 export type FormStatus = "draft" | "published" | "archived";
+export type DataSourceType = "database" | "rest_api";
+export type DataSourceParamValue = DynamicValue<string | number | boolean | null>;
+export type DataSourceRows = Record<string, unknown>[];
+export type DataSourceDatasetMap = Record<string, DataSourceRows>;
+
+export interface BaseDataSourceDefinition {
+  key: string;
+  type: DataSourceType;
+  connectorId: string;
+  cacheTtlSeconds?: number;
+  offlineRequired?: boolean;
+  params?: Record<string, DataSourceParamValue>;
+}
+
+export interface DatabaseDataSourceDefinition extends BaseDataSourceDefinition {
+  type: "database";
+  config: {
+    query: string;
+    limit?: number;
+  };
+}
+
+export interface RestApiDataSourceDefinition extends BaseDataSourceDefinition {
+  type: "rest_api";
+  config: {
+    method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+    pathTemplate: string;
+    headersTemplate?: Record<string, string>;
+    bodyTemplate?: unknown;
+    resultPath?: string;
+  };
+}
+
+export type DataSourceDefinition = DatabaseDataSourceDefinition | RestApiDataSourceDefinition;
 
 export interface FormDefinition {
   schemaVersion: SchemaVersion;
@@ -26,6 +60,8 @@ export interface FormDefinition {
     allowSubmit?: boolean;
     allowEditAfterSubmit?: boolean;
   };
+
+  dataSources?: DataSourceDefinition[];
 
   root: LayoutNode;         // always a layout node
 }
@@ -215,7 +251,7 @@ export interface OptionItem extends RNOption {
 }
 
 export interface DropdownProps extends BaseControlProps {
-  options: RNOption[];
+  options: DynamicValue<RNOption[]>;
   searchable?: boolean;
   mode?: "default" | "modal" | "dropdown";
   clearable?: boolean;
@@ -225,7 +261,7 @@ export interface DropdownProps extends BaseControlProps {
 }
 
 export interface MultiSelectProps extends BaseControlProps {
-  options: RNOption[];
+  options: DynamicValue<RNOption[]>;
   searchable?: boolean;
   mode?: "default" | "modal" | "dropdown";
   clearable?: boolean;

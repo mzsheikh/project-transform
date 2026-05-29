@@ -59,7 +59,13 @@ abstract class SqlDatabaseConnector extends BaseDatabaseConnector {
     return { insertedStatements: statements.length };
   }
 
+  async queryRows(sql: string, values: unknown[], limit: number): Promise<Record<string, unknown>[]> {
+    const rows = await this.query(sql, values);
+    return rows.slice(0, limit);
+  }
+
   protected abstract execute(sql: string, values: unknown[]): Promise<void>;
+  protected abstract query(sql: string, values: unknown[]): Promise<Record<string, unknown>[]>;
 }
 
 export class PostgresDatabaseConnector extends SqlDatabaseConnector {
@@ -95,6 +101,13 @@ export class PostgresDatabaseConnector extends SqlDatabaseConnector {
   protected async execute(sql: string, values: unknown[]): Promise<void> {
     await this.withClient(async (client) => {
       await client.query(sql, values);
+    });
+  }
+
+  protected async query(sql: string, values: unknown[]): Promise<Record<string, unknown>[]> {
+    return this.withClient(async (client) => {
+      const result = await client.query(sql, values);
+      return Array.isArray(result.rows) ? result.rows : [];
     });
   }
 
@@ -159,6 +172,13 @@ export class MysqlDatabaseConnector extends SqlDatabaseConnector {
     });
   }
 
+  protected async query(sql: string, values: unknown[]): Promise<Record<string, unknown>[]> {
+    return this.withConnection(async (connection) => {
+      const [rows] = await connection.execute(sql, values);
+      return Array.isArray(rows) ? (rows as Record<string, unknown>[]) : [];
+    });
+  }
+
   private async withConnection<T>(fn: (connection: any) => Promise<T>): Promise<T> {
     const mysql = loadOptionalModule("mysql2/promise");
     const connection = await mysql.createConnection(this.connectionOptions());
@@ -215,6 +235,15 @@ export class SqlServerDatabaseConnector extends SqlDatabaseConnector {
       const request = pool.request();
       values.forEach((value, index) => request.input(`p${index}`, value));
       await request.query(sql);
+    });
+  }
+
+  protected async query(sql: string, values: unknown[]): Promise<Record<string, unknown>[]> {
+    return this.withPool(async (pool) => {
+      const request = pool.request();
+      values.forEach((value, index) => request.input(`p${index}`, value));
+      const result = await request.query(sql);
+      return Array.isArray(result.recordset) ? result.recordset : [];
     });
   }
 
