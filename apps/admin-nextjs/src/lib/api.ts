@@ -129,6 +129,12 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
+  testConnectorUpdate: (appCode: string, connectorId: string, body: Partial<ConnectorInput>) =>
+    req<{ ok: boolean; result: Record<string, unknown> }>(`/apps/${appCode}/connectors/${connectorId}/test-config`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
   deleteConnector: (appCode: string, connectorId: string) =>
     req<{ deleted: boolean }>(`/apps/${appCode}/connectors/${connectorId}`, {
       method: "DELETE",

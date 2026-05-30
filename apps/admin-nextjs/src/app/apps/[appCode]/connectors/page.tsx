@@ -99,12 +99,12 @@ export default function ConnectorsPage() {
   const selectedConnector = (connectors.data ?? []).find((connector) => connector.id === selectedConnectorId) ?? null;
   const generatedJson = useMemo(() => {
     try {
-      const input = connectorInput(false);
+      const input = selectedConnectorId && !wizardOpen ? connectorUpdateInput(false) : connectorInput(false);
       return JSON.stringify({ configJson: input.configJson, secretsJson: input.secretsJson }, null, 2);
     } catch {
       return "";
     }
-  }, [form, kind]);
+  }, [form, kind, selectedConnectorId, wizardOpen]);
 
   function selectKind(next: ConnectorKind) {
     setKind(next);
@@ -121,6 +121,17 @@ export default function ConnectorsPage() {
     setForm(defaultConnectorForm("postgresql"));
     setCreateStatus("");
     setCreateResult(null);
+  }
+
+  function openConnector(connector: ConnectorDto) {
+    setWizardOpen(false);
+    setSelectedConnectorId(connector.id);
+    setKind(connectorKind(connector));
+    setForm(formFromConnector(connector));
+    setCreateStatus("");
+    setCreateResult(null);
+    setPageStatus("");
+    setActionResult(null);
   }
 
   function patchForm(patch: Partial<ConnectorForm>) {
@@ -174,6 +185,42 @@ export default function ConnectorsPage() {
     };
   }
 
+  function connectorUpdateInput(requireName: boolean): Partial<ConnectorInput> {
+    const input = connectorInput(requireName);
+    const secretsJson = input.secretsJson ?? {};
+    const hasSecretChanges = Object.keys(secretsJson).length > 0;
+    return {
+      ...input,
+      secretsJson: hasSecretChanges || (kind === "rest_api" && form.authMode === "none") ? secretsJson : undefined,
+    };
+  }
+
+  function renderConnectorConfigForm(typeLocked: boolean) {
+    return (
+      <section style={configGrid}>
+        <div style={configSection}>
+          <div style={configTitleRow}>
+            <h3 style={sectionTitle}>{connectorTypeTitle(kind)} settings</h3>
+            {typeLocked ? <span style={typeBadge}>Type locked</span> : null}
+          </div>
+          <TextField label="Connector name" value={form.name} placeholder="Production CRM" onChange={(name) => patchForm({ name })} />
+          {kind === "rest_api" ? (
+            <RestFields form={form} patchForm={patchForm} />
+          ) : (
+            <DatabaseFields kind={kind} form={form} patchForm={patchForm} />
+          )}
+        </div>
+        <div style={configAside}>
+          <h3 style={sectionTitle}>Generated JSON</h3>
+          <p style={smallText}>
+            These values are what will be sent to the connector API. Stored secrets are kept when secret fields are left blank.
+          </p>
+          <pre style={jsonPreview}>{generatedJson}</pre>
+        </div>
+      </section>
+    );
+  }
+
   async function createConnector() {
     setCreateStatus("Creating connector...");
     setCreateResult(null);
@@ -187,11 +234,35 @@ export default function ConnectorsPage() {
     }
   }
 
+  async function updateConnector(connector: ConnectorDto) {
+    setCreateStatus("Saving connector...");
+    setCreateResult(null);
+    try {
+      await api.updateConnector(appCode, connector.id, connectorUpdateInput(true));
+      await qc.invalidateQueries({ queryKey: qk.connectors(appCode) });
+      setCreateStatus("Connector updated.");
+    } catch (error) {
+      setCreateStatus(error instanceof Error ? error.message : "Failed to update connector.");
+    }
+  }
+
   async function testNewConnector() {
     setCreateStatus("Testing connection...");
     setCreateResult(null);
     try {
       const result = await api.testConnectorInput(appCode, connectorInput(false));
+      setCreateResult(result);
+      setCreateStatus("Connection test complete.");
+    } catch (error) {
+      setCreateStatus(error instanceof Error ? error.message : "Connection test failed.");
+    }
+  }
+
+  async function testEditedConnector(connector: ConnectorDto) {
+    setCreateStatus("Testing connection...");
+    setCreateResult(null);
+    try {
+      const result = await api.testConnectorUpdate(appCode, connector.id, connectorUpdateInput(false));
       setCreateResult(result);
       setCreateStatus("Connection test complete.");
     } catch (error) {
@@ -294,22 +365,7 @@ export default function ConnectorsPage() {
             </>
           ) : (
             <>
-              <section style={configGrid}>
-                <div style={configSection}>
-                  <h3 style={sectionTitle}>{connectorTypeTitle(kind)} settings</h3>
-                  <TextField label="Connector name" value={form.name} placeholder="Production CRM" onChange={(name) => patchForm({ name })} />
-                  {kind === "rest_api" ? (
-                    <RestFields form={form} patchForm={patchForm} />
-                  ) : (
-                    <DatabaseFields kind={kind} form={form} patchForm={patchForm} />
-                  )}
-                </div>
-                <div style={configAside}>
-                  <h3 style={sectionTitle}>Generated JSON</h3>
-                  <p style={smallText}>These values are what will be sent to the connector API. Secrets are stored encrypted by the backend.</p>
-                  <pre style={jsonPreview}>{generatedJson}</pre>
-                </div>
-              </section>
+              {renderConnectorConfigForm(false)}
               <div style={wizardFooter}>
                 <button type="button" style={secondaryButton} onClick={() => setWizardStep("type")}>Back</button>
                 <button type="button" style={secondaryButton} onClick={() => void testNewConnector()}>Test connection</button>
@@ -342,7 +398,7 @@ export default function ConnectorsPage() {
 
         {(connectors.data ?? []).map((connector) => (
           <article key={connector.id} style={connectorListRow}>
-            <button type="button" style={connectorListMain} onClick={() => { setWizardOpen(false); setSelectedConnectorId(connector.id); }}>
+            <button type="button" style={connectorListMain} onClick={() => openConnector(connector)}>
               <div style={connectorMeta}>
                 <span style={connectorIcon}>{connector.type === "rest_api" ? <RestIcon /> : <DatabaseIcon />}</span>
                 <div>
@@ -355,7 +411,7 @@ export default function ConnectorsPage() {
             <button
               type="button"
               style={iconButton}
-              onClick={() => { setWizardOpen(false); setSelectedConnectorId(connector.id); }}
+              onClick={() => openConnector(connector)}
               aria-label={`Open ${connector.name}`}
               title={`Open ${connector.name}`}
             >
@@ -373,7 +429,7 @@ export default function ConnectorsPage() {
                 <span style={connectorIcon}>{selectedConnector.type === "rest_api" ? <RestIcon /> : <DatabaseIcon />}</span>
                 <div>
                   <h2 style={detailsTitle}>{selectedConnector.name}</h2>
-                  <p style={connectorDetail}>{connectorSummary(selectedConnector)}</p>
+                  <p style={connectorDetail}>{connectorTypeLabel(selectedConnector)}</p>
                 </div>
               </div>
               <button type="button" style={iconButton} onClick={() => setSelectedConnectorId(null)} aria-label="Close connector details">
@@ -382,8 +438,11 @@ export default function ConnectorsPage() {
             </div>
 
             <div style={detailsActions}>
-              <button type="button" style={secondaryButton} onClick={() => void runAction("Connection test", () => api.testConnector(appCode, selectedConnector.id))}>
+              <button type="button" style={secondaryButton} onClick={() => void testEditedConnector(selectedConnector)}>
                 Test connection
+              </button>
+              <button type="button" style={primaryButton} onClick={() => void updateConnector(selectedConnector)} disabled={!form.name.trim()}>
+                Save changes
               </button>
               {selectedConnector.type === "database" ? (
                 <button type="button" style={secondaryButton} onClick={() => void inspectSchema(selectedConnector)}>
@@ -401,24 +460,12 @@ export default function ConnectorsPage() {
               </button>
             </div>
 
+            {createStatus ? <p style={statusText}>{createStatus}</p> : null}
+            {createResult ? <pre style={resultBox}>{JSON.stringify(createResult, null, 2)}</pre> : null}
             {pageStatus ? <p style={statusText}>{pageStatus}</p> : null}
 
             <div style={detailsBody}>
-              <section style={detailsSection}>
-                <h3 style={sectionTitle}>Configuration</h3>
-                <div style={configSummary}>
-                  {Object.entries(selectedConnector.configJson ?? {}).map(([key, value]) => (
-                    <div key={key} style={configItem}>
-                      <span style={configKey}>{key}</span>
-                      <span style={configValue}>{formatConfigValue(value)}</span>
-                    </div>
-                  ))}
-                  <div style={configItem}>
-                    <span style={configKey}>secrets</span>
-                    <span style={configValue}>{selectedConnector.hasSecrets ? "stored" : "none"}</span>
-                  </div>
-                </div>
-              </section>
+              {renderConnectorConfigForm(true)}
 
               {selectedConnector.type === "database" ? (
                 <DatabaseTools
@@ -775,6 +822,61 @@ function numberOrUndefined(value: string): number | undefined {
   return Number.isFinite(number) ? number : undefined;
 }
 
+function connectorKind(connector: ConnectorDto): ConnectorKind {
+  if (connector.type === "rest_api") return "rest_api";
+  return connector.provider ?? "postgresql";
+}
+
+function formFromConnector(connector: ConnectorDto): ConnectorForm {
+  const kind = connectorKind(connector);
+  const base = defaultConnectorForm(kind);
+  const config = connector.configJson ?? {};
+
+  if (kind === "rest_api") {
+    const auth = isRecord(config.auth) ? config.auth : {};
+    const authMode = isRestAuthMode(auth.mode) ? auth.mode : "none";
+    return {
+      ...base,
+      name: connector.name,
+      baseUrl: stringConfig(config.baseUrl, base.baseUrl),
+      testPath: stringConfig(config.testPath, base.testPath),
+      authMode,
+      apiKeyName: stringConfig(auth.name, base.apiKeyName),
+      apiKeyLocation: auth.location === "query" ? "query" : "header",
+      tokenUrl: stringConfig(auth.tokenUrl, base.tokenUrl),
+      scope: stringConfig(auth.scope, base.scope),
+      defaultHeaders: headersFromRecord(config.defaultHeaders),
+    };
+  }
+
+  return {
+    ...base,
+    name: connector.name,
+    host: stringConfig(config.host, base.host),
+    port: stringConfig(config.port, base.port),
+    database: stringConfig(config.database, base.database),
+    username: stringConfig(config.username, base.username),
+    schema: stringConfig(config.schema, base.schema),
+    ssl: config.ssl === true,
+    trustServerCertificate: config.trustServerCertificate === false ? false : base.trustServerCertificate,
+  };
+}
+
+function stringConfig(value: unknown, fallback: string) {
+  if (typeof value === "string") return value;
+  if (typeof value === "number") return String(value);
+  return fallback;
+}
+
+function headersFromRecord(value: unknown): HeaderRow[] {
+  if (!isRecord(value)) return [];
+  return Object.entries(value).map(([key, item]) => ({ id: randomId(), key, value: String(item ?? "") }));
+}
+
+function isRestAuthMode(value: unknown): value is RestAuthMode {
+  return value === "none" || value === "api_key" || value === "bearer" || value === "basic" || value === "oauth2_client_credentials";
+}
+
 function normalizeSchemaColumns(value: unknown[]): DatabaseSchemaColumn[] {
   return value.filter(isRecord).map((column) => ({
     schema: typeof column.schema === "string" ? column.schema : null,
@@ -801,29 +903,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
-function connectorSummary(connector: ConnectorDto) {
-  if (connector.type === "rest_api") {
-    const baseUrl = typeof connector.configJson?.baseUrl === "string" ? connector.configJson.baseUrl : "REST API";
-    return `${baseUrl} | secrets: ${connector.hasSecrets ? "stored" : "none"}`;
-  }
-  const host = typeof connector.configJson?.host === "string" ? connector.configJson.host : "database";
-  const database = typeof connector.configJson?.database === "string" ? connector.configJson.database : "";
-  return `${connector.provider ?? "database"} | ${[host, database].filter(Boolean).join(" / ")} | secrets: ${connector.hasSecrets ? "stored" : "none"}`;
-}
-
 function connectorTypeLabel(connector: ConnectorDto) {
   if (connector.type === "rest_api") return "REST API";
   if (connector.provider === "postgresql") return "PostgreSQL";
   if (connector.provider === "mysql") return "MySQL";
   if (connector.provider === "sqlserver") return "MS SQL Server";
   return "Database";
-}
-
-function formatConfigValue(value: unknown) {
-  if (typeof value === "boolean") return value ? "Yes" : "No";
-  if (typeof value === "number") return String(value);
-  if (typeof value === "string") return value;
-  return JSON.stringify(value);
 }
 
 function randomId() {
@@ -856,6 +941,7 @@ const wizardFooter: React.CSSProperties = { display: "flex", justifyContent: "fl
 const configGrid: React.CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0, 1.3fr) minmax(300px, 0.7fr)", gap: 16 };
 const configSection: React.CSSProperties = { border: "1px solid #d0d5dd", borderRadius: 8, background: "#fff", padding: 16, display: "grid", gap: 14 };
 const configAside: React.CSSProperties = { border: "1px solid #d0d5dd", borderRadius: 8, background: "#fff", padding: 16, display: "grid", gap: 10, alignContent: "start" };
+const configTitleRow: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" };
 const sectionTitle: React.CSSProperties = { margin: 0, fontSize: 15, color: "#344054" };
 const fieldGrid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 };
 const fieldLabel: React.CSSProperties = { display: "grid", gap: 6, fontWeight: 800, fontSize: 13, color: "#344054" };
@@ -875,10 +961,6 @@ const connectorName: React.CSSProperties = { margin: 0, fontSize: 18 };
 const connectorDetail: React.CSSProperties = { margin: "4px 0 0", color: "#667085", fontSize: 13 };
 const typeBadge: React.CSSProperties = { border: "1px solid #d0d5dd", borderRadius: 999, padding: "6px 10px", background: "#fff", color: "#344054", fontSize: 12, fontWeight: 900, whiteSpace: "nowrap" };
 const rowActions: React.CSSProperties = { display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" };
-const configSummary: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 8 };
-const configItem: React.CSSProperties = { border: "1px solid #e4e7ec", borderRadius: 8, padding: "9px 10px", display: "grid", gap: 3, background: "#fff" };
-const configKey: React.CSSProperties = { color: "#667085", fontSize: 11, fontWeight: 900, textTransform: "uppercase" };
-const configValue: React.CSSProperties = { color: "#344054", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 const toolPanel: React.CSSProperties = { border: "1px solid #e4e7ec", borderRadius: 8, padding: 12, background: "#fff" };
 const toolSummary: React.CSSProperties = { cursor: "pointer", fontWeight: 900, color: "#344054" };
 const tipBox: React.CSSProperties = { marginTop: 12, border: "1px solid #fedf89", borderRadius: 8, background: "#fffcf5", padding: 12, color: "#7a2e0e", fontSize: 13, lineHeight: 1.45 };

@@ -40,6 +40,15 @@ export class ConnectorsController {
     return this.connectors.update(appCode.toUpperCase(), id, dto);
   }
 
+  @Post("apps/:appCode/connectors/:id/test-config")
+  testUpdateConfig(
+    @Param("appCode") appCode: string,
+    @Param("id") id: string,
+    @Body() dto: UpdateConnectorDto,
+  ) {
+    return this.connectors.testUpdateConfig(appCode.toUpperCase(), id, dto);
+  }
+
   @Delete("apps/:appCode/connectors/:id")
   delete(@Param("appCode") appCode: string, @Param("id") id: string) {
     return this.connectors.delete(appCode.toUpperCase(), id);

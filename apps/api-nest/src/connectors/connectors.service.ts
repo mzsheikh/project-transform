@@ -62,26 +62,43 @@ export class ConnectorsService {
 
   async update(appCode: string, id: string, dto: UpdateConnectorDto) {
     const existing = await this.findConnector(appCode, id);
-    const nextType = dto.type ?? existing.type;
-    const nextProvider = nextType === "database" ? dto.provider ?? existing.provider : null;
-    if (nextType === "database" && !nextProvider) {
-      throw new BadRequestException("Database connector requires provider");
-    }
+    this.validateConnectorUpdate(existing, dto);
 
     const connector = await this.prisma.connector.update({
       where: { id: existing.id },
       data: {
         name: dto.name?.trim(),
-        type: dto.type,
-        provider: nextProvider,
+        type: existing.type,
+        provider: existing.provider,
         configJson: dto.configJson ? (dto.configJson as Prisma.InputJsonObject) : undefined,
         secretsJson:
           dto.secretsJson === undefined
             ? undefined
-            : this.encryptedSecrets(dto.secretsJson),
+            : this.encryptedMergedSecrets(existing.secretsJson, dto.secretsJson),
       },
     });
     return this.toPublic(connector);
+  }
+
+  async testUpdateConfig(appCode: string, id: string, dto: UpdateConnectorDto) {
+    const existing = await this.findConnector(appCode, id);
+    this.validateConnectorUpdate(existing, dto);
+    const runtime: ConnectorRuntimeConfig = {
+      id: existing.id,
+      name: dto.name?.trim() || existing.name,
+      type: existing.type,
+      provider: existing.provider,
+      config: dto.configJson ?? this.asRecord(existing.configJson),
+      secrets:
+        dto.secretsJson === undefined
+          ? this.vault.decryptJson(existing.secretsJson)
+          : this.mergeSecrets(existing.secretsJson, dto.secretsJson),
+    };
+    const result =
+      runtime.type === "database"
+        ? await this.factory.database(runtime).test()
+        : await this.factory.rest(runtime).test();
+    return { ok: true, result };
   }
 
   async delete(appCode: string, id: string) {
@@ -161,6 +178,26 @@ export class ConnectorsService {
     }
   }
 
+  private validateConnectorUpdate(
+    existing: { type: "database" | "rest_api"; provider: "postgresql" | "mysql" | "sqlserver" | null },
+    dto: UpdateConnectorDto,
+  ) {
+    if (dto.type && dto.type !== existing.type) {
+      throw new BadRequestException("Connector type cannot be changed");
+    }
+    if (existing.type === "database") {
+      if (dto.provider && dto.provider !== existing.provider) {
+        throw new BadRequestException("Database connector provider cannot be changed");
+      }
+      if (!existing.provider) {
+        throw new BadRequestException("Database connector requires provider");
+      }
+    }
+    if (existing.type === "rest_api" && dto.provider) {
+      throw new BadRequestException("REST API connector cannot set database provider");
+    }
+  }
+
   private toPublic(connector: {
     id: string;
     appCode: string;
@@ -201,5 +238,15 @@ export class ConnectorsService {
 
   private encryptedSecrets(value: Record<string, unknown> | undefined) {
     return (this.vault.encryptJson(value) as Prisma.InputJsonObject | null) ?? Prisma.DbNull;
+  }
+
+  private mergeSecrets(existingSecrets: Prisma.JsonValue | null, patch: Record<string, unknown> | undefined) {
+    const nextPatch = patch ?? {};
+    if (Object.keys(nextPatch).length === 0) return {};
+    return { ...this.vault.decryptJson(existingSecrets), ...nextPatch };
+  }
+
+  private encryptedMergedSecrets(existingSecrets: Prisma.JsonValue | null, patch: Record<string, unknown> | undefined) {
+    return (this.vault.encryptJson(this.mergeSecrets(existingSecrets, patch)) as Prisma.InputJsonObject | null) ?? Prisma.DbNull;
   }
 }
