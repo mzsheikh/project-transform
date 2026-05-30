@@ -230,25 +230,29 @@ export default function ConnectorsPage() {
 
   return (
     <main style={page}>
-      <header style={hero}>
-        <div>
-          <div style={eyebrow}>Transform Data</div>
-          <h1 style={title}>{appCode} Connectors</h1>
-          <p style={subtitle}>Manage database and REST API integrations used by data sources and submit actions.</p>
-        </div>
-        <div style={heroActions}>
-          <Link href={`/apps/${appCode}`} style={secondaryLink}>Back to forms</Link>
-          <button type="button" style={primaryButton} onClick={openWizard}>
-            <PlusIcon /> Add new connector
-          </button>
-        </div>
-      </header>
+      {!wizardOpen && !selectedConnector ? (
+        <>
+          <header style={hero}>
+            <div>
+              <div style={eyebrow}>Transform Data</div>
+              <h1 style={title}>{appCode} Connectors</h1>
+              <p style={subtitle}>Manage database and REST API integrations used by data sources and submit actions.</p>
+            </div>
+            <div style={heroActions}>
+              <Link href={`/apps/${appCode}`} style={secondaryLink}>Back to forms</Link>
+              <button type="button" style={primaryButton} onClick={openWizard}>
+                <PlusIcon /> Add new connector
+              </button>
+            </div>
+          </header>
 
-      <section style={summaryStrip}>
-        <Metric label="Configured connectors" value={String(connectorCount)} />
-        <Metric label="Database" value={String((connectors.data ?? []).filter((connector) => connector.type === "database").length)} />
-        <Metric label="REST API" value={String((connectors.data ?? []).filter((connector) => connector.type === "rest_api").length)} />
-      </section>
+          <section style={summaryStrip}>
+            <Metric label="Configured connectors" value={String(connectorCount)} />
+            <Metric label="Database" value={String((connectors.data ?? []).filter((connector) => connector.type === "database").length)} />
+            <Metric label="REST API" value={String((connectors.data ?? []).filter((connector) => connector.type === "rest_api").length)} />
+          </section>
+        </>
+      ) : null}
 
       {wizardOpen ? (
         <section style={wizardPanel}>
