@@ -115,6 +115,7 @@ export default function ConnectorsPage() {
 
   function openWizard() {
     setWizardOpen(true);
+    setSelectedConnectorId(null);
     setWizardStep("type");
     setKind("postgresql");
     setForm(defaultConnectorForm("postgresql"));
@@ -317,6 +318,7 @@ export default function ConnectorsPage() {
         </section>
       ) : null}
 
+      {!wizardOpen && !selectedConnector ? (
       <section style={listSection}>
         <div style={sectionHeader}>
           <h2 style={panelTitle}>Configured connectors</h2>
@@ -336,7 +338,7 @@ export default function ConnectorsPage() {
 
         {(connectors.data ?? []).map((connector) => (
           <article key={connector.id} style={connectorListRow}>
-            <button type="button" style={connectorListMain} onClick={() => setSelectedConnectorId(connector.id)}>
+            <button type="button" style={connectorListMain} onClick={() => { setWizardOpen(false); setSelectedConnectorId(connector.id); }}>
               <div style={connectorMeta}>
                 <span style={connectorIcon}>{connector.type === "rest_api" ? <RestIcon /> : <DatabaseIcon />}</span>
                 <div>
@@ -346,16 +348,22 @@ export default function ConnectorsPage() {
               </div>
             </button>
             <span style={typeBadge}>{connectorTypeLabel(connector)}</span>
-            <button type="button" style={secondaryButton} onClick={() => setSelectedConnectorId(connector.id)}>
-              Open
+            <button
+              type="button"
+              style={iconButton}
+              onClick={() => { setWizardOpen(false); setSelectedConnectorId(connector.id); }}
+              aria-label={`Open ${connector.name}`}
+              title={`Open ${connector.name}`}
+            >
+              <ArrowRightIcon />
             </button>
           </article>
         ))}
       </section>
+      ) : null}
 
-      {selectedConnector ? (
-        <div style={detailsBackdrop} onClick={() => setSelectedConnectorId(null)}>
-          <section style={detailsWindow} onClick={(event) => event.stopPropagation()}>
+      {!wizardOpen && selectedConnector ? (
+          <section style={detailsWindow}>
             <div style={detailsHeader}>
               <div style={connectorMeta}>
                 <span style={connectorIcon}>{selectedConnector.type === "rest_api" ? <RestIcon /> : <DatabaseIcon />}</span>
@@ -438,7 +446,6 @@ export default function ConnectorsPage() {
               ) : null}
             </div>
           </section>
-        </div>
       ) : null}
     </main>
   );
@@ -884,8 +891,7 @@ const th: React.CSSProperties = { textAlign: "left", color: "#667085", fontSize:
 const td: React.CSSProperties = { padding: "9px 12px", borderBottom: "1px solid #f2f4f7", fontSize: 13, color: "#344054" };
 const emptyState: React.CSSProperties = { border: "1px dashed #d0d5dd", borderRadius: 8, padding: 18, display: "flex", gap: 12, alignItems: "center", background: "#fcfcfd" };
 const emptyIcon: React.CSSProperties = { width: 42, height: 42, borderRadius: 8, background: "#eef4ff", color: "#175cd3", display: "inline-flex", alignItems: "center", justifyContent: "center" };
-const detailsBackdrop: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 70, background: "rgba(15, 23, 42, 0.42)", padding: 24, display: "grid", placeItems: "center" };
-const detailsWindow: React.CSSProperties = { width: "min(980px, 100%)", maxHeight: "90vh", overflow: "auto", borderRadius: 8, background: "#fff", boxShadow: "0 24px 80px rgba(16, 24, 40, 0.28)", padding: 18, display: "grid", gap: 16 };
+const detailsWindow: React.CSSProperties = { border: "1px solid #d0d5dd", borderRadius: 8, background: "#fff", padding: 18, display: "grid", gap: 16, boxShadow: "0 1px 2px rgba(16, 24, 40, 0.04)" };
 const detailsHeader: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 14, alignItems: "flex-start", borderBottom: "1px solid #e4e7ec", paddingBottom: 14 };
 const detailsTitle: React.CSSProperties = { margin: 0, fontSize: 22 };
 const detailsActions: React.CSSProperties = { display: "flex", gap: 8, flexWrap: "wrap" };
@@ -930,4 +936,8 @@ function ChevronRightIcon() {
 
 function ChevronDownIcon() {
   return <svg viewBox="0 0 20 20" style={iconSvg} aria-hidden><path d="m4 7 6 6 6-6" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+}
+
+function ArrowRightIcon() {
+  return <svg viewBox="0 0 20 20" style={iconSvg} aria-hidden><path d="M4 10h11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /><path d="m11 5 5 5-5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>;
 }
