@@ -45,6 +45,16 @@ function valueToOptionsText(options: Array<{ label: string; value: string }>) {
   return options.map((o) => `${o.label}=${o.value}`).join("\n");
 }
 
+function parseJsonOrValue(text: string, fallback: unknown) {
+  const trimmed = text.trim();
+  if (!trimmed) return fallback;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return fallback;
+  }
+}
+
 export function PropertiesPanel({
   node,
   onChange,
@@ -115,7 +125,7 @@ export function PropertiesPanel({
           <>
             <TextField label="Label" value={node.label ?? ""} onChange={(label) => onChange({ label })} />
             <TextField label="Key" value={node.key} onChange={(key) => onChange({ key })} />
-            {node.controlType !== "button" ? (
+            {node.controlType !== "button" && node.controlType !== "listview" ? (
               <>
                 <BoolField label="Required" value={node.validation?.required ?? false} expressionFields={expressionFields} onChange={(required) => onChange({ validation: { ...(node.validation ?? {}), required } })} />
                 <SectionTitle title="Base Control Props" />
@@ -138,11 +148,12 @@ export function PropertiesPanel({
 
         {tab === "validation" ? (
           <>
-            {node.controlType === "button" ? (
+            {node.controlType === "button" || node.controlType === "listview" ? (
               <>
                 <ButtonActionsField
                   buttonKey={node.key}
                   actions={Array.isArray(props.actions) ? props.actions : []}
+                  required={node.controlType === "button"}
                   expressionFields={expressionFields}
                   onChange={(actions) => setProps(onChange, node, "actions", actions)}
                   onConfigureAction={onConfigureButtonAction}
@@ -151,7 +162,7 @@ export function PropertiesPanel({
                 />
               </>
             ) : null}
-            {node.controlType !== "button" ? (
+            {node.controlType !== "button" && node.controlType !== "listview" ? (
               <BoolField label="Required" value={node.validation?.required ?? false} expressionFields={expressionFields} onChange={(required) => onChange({ validation: { ...(node.validation ?? {}), required } })} />
             ) : null}
             {node.controlType === "text" ? (
@@ -200,7 +211,7 @@ export function PropertiesPanel({
             <BoolField label="Accessible" value={props.accessible ?? true} defaultValue={true} expressionFields={expressionFields} onChange={(accessible) => setProps(onChange, node, "accessible", accessible)} />
             <BoolField label="Auto Focus" value={props.autoFocus ?? false} expressionFields={expressionFields} onChange={(autoFocus) => setProps(onChange, node, "autoFocus", autoFocus)} />
             <TextField label="Test ID" value={props.testID ?? ""} onChange={(testID) => setProps(onChange, node, "testID", testID)} />
-            {node.controlType !== "button" ? (
+            {node.controlType !== "button" && node.controlType !== "listview" ? (
               <ControlSpecificFields node={node} props={props} expressionFields={expressionFields} onChange={onChange} />
             ) : null}
             <SectionTitle title="Style" />
@@ -246,6 +257,20 @@ function ControlSpecificFields({
         <SectionTitle title="Button Control" />
         <TextField label="Text" value={props.text ?? node.label ?? "Button"} enableExpressions expressionFields={expressionFields} onChange={(text) => setProps(onChange, node, "text", text)} />
         <SelectField label="Variant" value={props.variant ?? "primary"} options={["primary", "secondary", "danger"]} onChange={(variant) => setProps(onChange, node, "variant", variant)} />
+      </>
+    );
+  }
+
+  if (node.controlType === "listview") {
+    return (
+      <>
+        <SectionTitle title="List View Control" />
+        <TextAreaField label="Data" value={typeof props.data === "string" ? props.data : JSON.stringify(props.data ?? [], null, 2)} enableExpressions expressionFields={expressionFields} onChange={(data) => setProps(onChange, node, "data", data.trim().startsWith("=") ? data.trim() : parseJsonOrValue(data, []))} />
+        <TextField label="Key Field" value={props.keyField ?? "id"} enableExpressions expressionFields={expressionFields} onChange={(keyField) => setProps(onChange, node, "keyField", keyField)} />
+        <TextField label="Title" value={props.title ?? ""} enableExpressions expressionFields={expressionFields} onChange={(title) => setProps(onChange, node, "title", title)} />
+        <TextField label="Subtitle" value={props.subtitle ?? ""} enableExpressions expressionFields={expressionFields} onChange={(subtitle) => setProps(onChange, node, "subtitle", subtitle)} />
+        <TextAreaField label="Description" value={props.description ?? ""} enableExpressions expressionFields={expressionFields} onChange={(description) => setProps(onChange, node, "description", description)} />
+        <TextField label="Empty Text" value={props.emptyText ?? "No records found"} enableExpressions expressionFields={expressionFields} onChange={(emptyText) => setProps(onChange, node, "emptyText", emptyText)} />
       </>
     );
   }
@@ -326,6 +351,7 @@ function ControlSpecificFields({
 function ButtonActionsField({
   buttonKey,
   actions,
+  required,
   expressionFields,
   onChange,
   onConfigureAction,
@@ -334,6 +360,7 @@ function ButtonActionsField({
 }: {
   buttonKey: string;
   actions: ButtonAction[];
+  required: boolean;
   expressionFields: ExpressionFieldInfo[];
   onChange: (actions: ButtonAction[]) => void;
   onConfigureAction?: (buttonKey: string, actionId: string) => void;
@@ -368,8 +395,8 @@ function ButtonActionsField({
 
   return (
     <div style={actionEditor}>
-      <SectionTitle title="Button Actions" />
-      {actions.length === 0 ? <div style={emptyPanel}>Add at least one action before publishing.</div> : null}
+      <SectionTitle title="Actions" />
+      {actions.length === 0 ? <div style={emptyPanel}>{required ? "Add at least one action before publishing." : "Add an action to make row taps interactive."}</div> : null}
       {actions.map((action, index) => (
         <div key={action.id} style={buttonActionCard}>
           <div style={actionRow}>
@@ -381,16 +408,16 @@ function ButtonActionsField({
                 onChange={(event) => {
                   const oldType = normalizeButtonActionType(action.type);
                   const nextType = event.target.value as ButtonAction["type"];
-                  const next = nextType === "save_draft"
-                    ? { id: action.id, type: "save_draft", enabled: action.enabled }
-                    : { id: action.id, type: nextType, enabled: action.enabled, clearDraftOnSuccess: true };
+                  const next = makeActionForType(action, nextType);
                   update(index, next as Partial<ButtonAction>);
-                  if (oldType !== nextType && isServerButtonActionType(oldType) && nextType === "save_draft") {
+                  if (oldType !== nextType && isServerButtonActionType(oldType) && !isServerButtonActionType(nextType)) {
                     onDeleteActionConfig?.(buttonKey, action.id);
                   }
                 }}
               >
                 <option value="save_draft">Save Draft</option>
+                <option value="set_variable">Set Variable</option>
+                <option value="open_form">Open Form</option>
                 <option value="email_pdf">Email PDF</option>
                 <option value="database">Submit to Database</option>
                 <option value="rest_api">Submit to REST API</option>
@@ -409,6 +436,55 @@ function ButtonActionsField({
             expressionFields={expressionFields}
             onChange={(enabled) => update(index, { enabled } as Partial<ButtonAction>)}
           />
+          {action.type === "set_variable" ? (
+            <>
+              <SelectField
+                label="Scope"
+                value={action.scope ?? "form"}
+                options={["row", "form", "global"]}
+                onChange={(scope) => update(index, { scope: scope as Extract<ButtonAction, { type: "set_variable" }>["scope"] } as Partial<ButtonAction>)}
+              />
+              <TextField
+                label="Variable Key"
+                value={action.key ?? ""}
+                enableExpressions
+                expressionFields={expressionFields}
+                onChange={(key) => update(index, { key } as Partial<ButtonAction>)}
+              />
+              <TextAreaField
+                label="Value"
+                value={stringifyActionValue(action.value)}
+                enableExpressions
+                expressionFields={expressionFields}
+                onChange={(value) => update(index, { value: value.trim().startsWith("=") ? value.trim() : parseJsonOrValue(value, value) } as Partial<ButtonAction>)}
+              />
+            </>
+          ) : null}
+          {action.type === "open_form" ? (
+            <>
+              <TextField
+                label="Form Key"
+                value={action.formKey ?? ""}
+                enableExpressions
+                expressionFields={expressionFields}
+                onChange={(formKey) => update(index, { formKey } as Partial<ButtonAction>)}
+              />
+              <TextField
+                label="App Code"
+                value={action.appCode ?? ""}
+                enableExpressions
+                expressionFields={expressionFields}
+                onChange={(appCode) => update(index, { appCode } as Partial<ButtonAction>)}
+              />
+              <TextAreaField
+                label="Initial Data JSON"
+                value={stringifyActionValue(action.initialData ?? {})}
+                enableExpressions
+                expressionFields={expressionFields}
+                onChange={(initialData) => update(index, { initialData: initialData.trim().startsWith("=") ? initialData.trim() : parseJsonOrValue(initialData, {}) } as Partial<ButtonAction>)}
+              />
+            </>
+          ) : null}
           {isServerButtonActionType(action.type) ? (
             <label style={inline}>
               <input
@@ -443,11 +519,23 @@ function actionId() {
   return `action_${Math.random().toString(36).slice(2, 10)}`;
 }
 
+function makeActionForType(action: ButtonAction, type: ButtonAction["type"]): ButtonAction {
+  if (type === "save_draft") return { id: action.id, type, enabled: action.enabled };
+  if (type === "set_variable") return { id: action.id, type, enabled: action.enabled, scope: "form", key: "", value: "" };
+  if (type === "open_form") return { id: action.id, type, enabled: action.enabled, formKey: "", initialData: {} };
+  return { id: action.id, type, enabled: action.enabled, clearDraftOnSuccess: true } as ButtonAction;
+}
+
+function stringifyActionValue(value: unknown) {
+  if (typeof value === "string") return value;
+  return JSON.stringify(value ?? null, null, 2);
+}
+
 function normalizeButtonActionType(type: string): ButtonAction["type"] {
   return type === "submit" ? "email_pdf" : (type as ButtonAction["type"]);
 }
 
-function isServerButtonActionType(type: string): type is Exclude<ButtonAction["type"], "save_draft"> {
+function isServerButtonActionType(type: string): type is Extract<ButtonAction["type"], "email_pdf" | "database" | "rest_api"> {
   return type === "email_pdf" || type === "database" || type === "rest_api";
 }
 

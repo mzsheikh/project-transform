@@ -149,20 +149,20 @@ export class SubmitActionsService {
     const form = schemaJson as unknown as FormDefinition;
     const keys = new Set<string>();
     if (form?.root) {
-      this.collectButtonKeys(form.root, keys);
+      this.collectTriggerKeys(form.root, keys);
     }
     if (!keys.has(normalized)) {
-      throw new BadRequestException(`Submit action triggerKey "${normalized}" does not match a button control.`);
+      throw new BadRequestException(`Submit action triggerKey "${normalized}" does not match an action control.`);
     }
     return normalized;
   }
 
-  private collectButtonKeys(node: Node, keys: Set<string>) {
+  private collectTriggerKeys(node: Node, keys: Set<string>) {
     if (node.type === "control") {
-      if (node.controlType === "button") keys.add(node.key);
+      if (node.controlType === "button" || isListViewControlType(node.controlType)) keys.add(node.key);
       return;
     }
-    node.children.forEach((child) => this.collectButtonKeys(child, keys));
+    node.children.forEach((child) => this.collectTriggerKeys(child, keys));
   }
 
   private resolveButtonActionId(
@@ -176,15 +176,15 @@ export class SubmitActionsService {
       : null;
     if (!normalized) return null;
     if (!triggerKey) {
-      throw new BadRequestException("buttonActionId requires a button triggerKey.");
+      throw new BadRequestException("buttonActionId requires an action control triggerKey.");
     }
 
     const form = schemaJson as unknown as FormDefinition;
-    const button = form?.root ? this.findButtonControl(form.root, triggerKey) : null;
-    const actions = Array.isArray(button?.props?.actions) ? button.props.actions : [];
+    const control = form?.root ? this.findActionControl(form.root, triggerKey) : null;
+    const actions = Array.isArray(control?.props?.actions) ? control.props.actions : [];
     const action = actions.find((item) => item && item.id === normalized);
     if (!action) {
-      throw new BadRequestException(`buttonActionId "${normalized}" does not match an action on button "${triggerKey}".`);
+      throw new BadRequestException(`buttonActionId "${normalized}" does not match an action on control "${triggerKey}".`);
     }
     if (action.type !== type) {
       throw new BadRequestException(`buttonActionId "${normalized}" is configured as "${action.type}", not "${type}".`);
@@ -192,12 +192,12 @@ export class SubmitActionsService {
     return normalized;
   }
 
-  private findButtonControl(node: Node, key: string): Extract<Node, { type: "control" }> | null {
+  private findActionControl(node: Node, key: string): Extract<Node, { type: "control" }> | null {
     if (node.type === "control") {
-      return node.controlType === "button" && node.key === key ? node : null;
+      return (node.controlType === "button" || isListViewControlType(node.controlType)) && node.key === key ? node : null;
     }
     for (const child of node.children) {
-      const found = this.findButtonControl(child, key);
+      const found = this.findActionControl(child, key);
       if (found) return found;
     }
     return null;
@@ -244,4 +244,8 @@ export class SubmitActionsService {
       ? (value as Record<string, unknown>)
       : {};
   }
+}
+
+function isListViewControlType(controlType: unknown): boolean {
+  return controlType === "listview" || controlType === "listView" || controlType === "list_view";
 }

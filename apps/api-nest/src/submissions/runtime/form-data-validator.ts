@@ -1,6 +1,6 @@
 import type { ControlNode, DataSourceDatasetMap, FormDefinition, LayoutNode, Node } from "../../../../../packages/contracts/src/form-types";
 import type { SubmissionDataValue } from "../../../../../packages/contracts/src/submission-types";
-import { evaluateCalculatedFormData } from "../../../../../packages/contracts/src/expressions";
+import { evaluateCalculatedFormData, type ExpressionVariableState } from "../../../../../packages/contracts/src/expressions";
 import { validateFormData } from "../../../../../packages/contracts/src/form-validators";
 
 type ValidationError = { key: string; message: string };
@@ -9,14 +9,16 @@ export function validateSubmissionData(
   schemaJson: unknown,
   data: Record<string, unknown>,
   datasets: DataSourceDatasetMap = {},
+  variables: ExpressionVariableState = {},
 ): ValidationError[] {
-  return validateAndNormalizeSubmissionData(schemaJson, data, datasets).errors;
+  return validateAndNormalizeSubmissionData(schemaJson, data, datasets, variables).errors;
 }
 
 export function validateAndNormalizeSubmissionData(
   schemaJson: unknown,
   data: Record<string, unknown>,
   datasets: DataSourceDatasetMap = {},
+  variables: ExpressionVariableState = {},
 ): { data: Record<string, SubmissionDataValue>; errors: ValidationError[] } {
   const form = readFormDefinition(schemaJson);
   if (!form) {
@@ -26,14 +28,14 @@ export function validateAndNormalizeSubmissionData(
     };
   }
 
-  const calculated = evaluateCalculatedFormData(form, data, datasets);
+  const calculated = evaluateCalculatedFormData(form, data, datasets, variables);
   const errors: ValidationError[] = calculated.errors.map((error) => ({
     key: error.key ?? error.path,
     message: error.message,
   }));
 
   errors.push(...compareCalculatedValues(form.root, data, calculated.data, ""));
-  errors.push(...validateFormData(form, calculated.data, datasets));
+  errors.push(...validateFormData(form, calculated.data, datasets, variables));
 
   return {
     data: calculated.data,
@@ -48,7 +50,7 @@ function compareCalculatedValues(
   prefix: string,
 ): ValidationError[] {
   if (node.type === "control") {
-    if (node.controlType === "button") return [];
+    if (node.controlType === "button" || isListViewControlType(node.controlType)) return [];
     if (!hasCalculatedValue(node)) return [];
     if (!Object.prototype.hasOwnProperty.call(submittedData, node.key)) return [];
     const key = prefix ? `${prefix}.${node.key}` : node.key;
@@ -105,6 +107,10 @@ function readFormDefinition(schemaJson: unknown): FormDefinition | null {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function isListViewControlType(controlType: unknown): boolean {
+  return controlType === "listview" || controlType === "listView" || controlType === "list_view";
 }
 
 function jsonEqual(left: unknown, right: unknown): boolean {

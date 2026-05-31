@@ -9,7 +9,7 @@ import type {
   FormDefinition,
   RestApiDataSourceDefinition,
 } from "../../../../packages/contracts/src/form-types";
-import { resolveDynamicValue } from "../../../../packages/contracts/src/expressions";
+import { resolveDynamicValue, type ExpressionVariableState } from "../../../../packages/contracts/src/expressions";
 import { FetchFormDatasetsDto, PreviewFormDataSourceDto } from "./dto/fetch-form-datasets.dto";
 
 type DatasetPayload = {
@@ -38,7 +38,7 @@ export class FormDatasetsService {
     const datasets: Record<string, DatasetPayload> = {};
 
     for (const source of sources) {
-      const params = this.resolveParams(source, dto.data ?? {});
+      const params = this.resolveParams(source, dto.data ?? {}, dto.variables ?? {});
       const runtime = await this.connectors.runtimeConfig(appCode, source.connectorId);
       const rows =
         source.type === "database"
@@ -61,7 +61,7 @@ export class FormDatasetsService {
 
   async previewSource(appCode: string, dto: PreviewFormDataSourceDto) {
     const source = this.readSource(dto.source);
-    const params = this.resolveParams(source, dto.data ?? {});
+    const params = this.resolveParams(source, dto.data ?? {}, dto.variables ?? {});
     const runtime = await this.connectors.runtimeConfig(appCode, source.connectorId);
     const rows =
       source.type === "database"
@@ -89,8 +89,8 @@ export class FormDatasetsService {
     return source as unknown as DataSourceDefinition;
   }
 
-  private resolveParams(source: DataSourceDefinition, data: Record<string, unknown>) {
-    const result = resolveDynamicValue(source.params ?? {}, { rootData: data }, `dataSources.${source.key}.params`);
+  private resolveParams(source: DataSourceDefinition, data: Record<string, unknown>, variables: ExpressionVariableState) {
+    const result = resolveDynamicValue(source.params ?? {}, { rootData: data, variables }, `dataSources.${source.key}.params`);
     if (result.errors.length > 0) {
       throw new BadRequestException({
         message: `Data source "${source.key}" parameters could not be resolved`,

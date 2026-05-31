@@ -370,7 +370,10 @@ export function FormDesigner({
 }
 
 function withExpressionSchemaVersion(schema: FormDefinition): FormDefinition {
-  if (formHasButtonControls(schema.root) && schema.schemaVersion !== "1.2") {
+  if (formRequiresActionSchema(schema.root) && schema.schemaVersion !== "1.3") {
+    return { ...schema, schemaVersion: "1.3" };
+  }
+  if (formHasButtonControls(schema.root) && schema.schemaVersion !== "1.2" && schema.schemaVersion !== "1.3") {
     return { ...schema, schemaVersion: "1.2" };
   }
   return formHasExpressions(schema) && schema.schemaVersion === "1.0"
@@ -383,9 +386,17 @@ function formHasButtonControls(node: Node): boolean {
   return node.children.some(formHasButtonControls);
 }
 
+function formRequiresActionSchema(node: Node): boolean {
+  if (node.type === "control") {
+    const actions = Array.isArray(node.props?.actions) ? (node.props.actions as ButtonAction[]) : [];
+    return node.controlType === "listview" || actions.some((action) => action.type === "set_variable" || action.type === "open_form");
+  }
+  return node.children.some(formRequiresActionSchema);
+}
+
 function findButtonControl(node: Node, buttonKey: string): ControlNode | null {
   if (node.type === "control") {
-    return node.controlType === "button" && node.key === buttonKey ? node : null;
+    return (node.controlType === "button" || node.controlType === "listview") && node.key === buttonKey ? node : null;
   }
   for (const child of node.children) {
     const found = findButtonControl(child, buttonKey);
@@ -401,7 +412,7 @@ function findButtonAction(root: LayoutNode, buttonKey: string, actionId: string)
   return index >= 0 ? { action: actions[index], index } : null;
 }
 
-function isServerButtonActionType(type: string): type is Exclude<ButtonAction["type"], "save_draft"> {
+function isServerButtonActionType(type: string): type is Extract<ButtonAction["type"], "email_pdf" | "database" | "rest_api"> {
   return type === "email_pdf" || type === "database" || type === "rest_api";
 }
 
@@ -411,7 +422,7 @@ function collectExpressionFields(form: FormDefinition): ExpressionFieldInfo[] {
 
   function walk(node: Node) {
     if (node.type === "control") {
-      if (node.controlType !== "button" && node.key && !seen.has(node.key)) {
+      if (node.controlType !== "button" && node.controlType !== "listview" && node.key && !seen.has(node.key)) {
         seen.add(node.key);
         fields.push({
           key: node.key,
@@ -512,6 +523,20 @@ function previewControl(node: ControlNode, props: Record<string, any>) {
   }
   if (node.controlType === "button") {
     return <button type="button" style={previewButton}>{props.text || node.label || "Button"}</button>;
+  }
+  if (node.controlType === "listview") {
+    return (
+      <div style={previewListView}>
+        <div style={previewListItem}>
+          <strong>{props.title || "List item title"}</strong>
+          <span>{props.subtitle || "Subtitle"}</span>
+        </div>
+        <div style={previewListItem}>
+          <strong>{props.emptyText || "No records found"}</strong>
+          <span>Rows render from the data expression.</span>
+        </div>
+      </div>
+    );
   }
   return <input style={previewInput} placeholder={props.placeholder ?? ""} type={node.controlType === "number" ? "number" : "text"} readOnly />;
 }
@@ -772,6 +797,8 @@ const previewField: React.CSSProperties = { display: "grid", gap: 7, color: "#34
 const previewLabel: React.CSSProperties = { fontSize: 14 };
 const previewInput: React.CSSProperties = { minHeight: 42, border: "1px solid #d0d5dd", borderRadius: 10, padding: "10px 12px", background: "#fff" };
 const previewButton: React.CSSProperties = { minHeight: 42, border: 0, borderRadius: 10, padding: "10px 14px", background: "#111827", color: "#fff", fontWeight: 800, textAlign: "center" };
+const previewListView: React.CSSProperties = { border: "1px solid #d0d5dd", borderRadius: 10, overflow: "hidden", background: "#fff" };
+const previewListItem: React.CSSProperties = { display: "grid", gap: 4, padding: "10px 12px", borderBottom: "1px solid #eef2f6", color: "#344054" };
 const previewEmpty: React.CSSProperties = { border: "1px dashed #d0d5dd", borderRadius: 10, padding: 18, color: "#98a2b3" };
 const previewRepeater: React.CSSProperties = { border: "1px solid #d0d5dd", borderRadius: 12, padding: 14, display: "grid", gap: 12 };
 const previewRepeaterHeader: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 12, color: "#344054" };

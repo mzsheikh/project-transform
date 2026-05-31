@@ -23,6 +23,7 @@ import {
   rowsFromDatasetResponse,
   saveCachedDatasets,
 } from "../storage/datasets";
+import { loadGlobalVariables, saveGlobalVariables } from "../storage/variables";
 
 type Tab = "forms" | "drafts" | "settings";
 
@@ -43,6 +44,8 @@ type Stage =
       currentData?: FormState;
       datasets?: DataSourceDatasetMap;
       datasetStatus?: string;
+      formVariables?: Record<string, unknown>;
+      globalVariables?: Record<string, unknown>;
     };
 
 export function AppBootstrapScreen() {
@@ -107,14 +110,22 @@ export function AppBootstrapScreen() {
     }
   }
 
-  async function openForm(appCode: string, formKey: string, forms: BootstrapFormItem[], drafts: SavedDraft[], activeTab: Tab) {
+  async function openForm(
+    appCode: string,
+    formKey: string,
+    forms: BootstrapFormItem[],
+    drafts: SavedDraft[],
+    activeTab: Tab,
+    initialData: FormState = {},
+  ) {
     setError("");
     setCurrentDraftId(undefined);
     setStage({ kind: "loadingForm", appCode, formKey, forms, drafts, activeTab });
 
     try {
       const form = await api.latestForm(appCode, formKey);
-      const cached = await getCachedDatasets(appCode, form, {});
+      const globalVariables = await loadGlobalVariables(appCode);
+      const cached = await getCachedDatasets(appCode, form, initialData, { form: {}, global: globalVariables });
       setStage({
         kind: "renderForm",
         appCode,
@@ -122,10 +133,14 @@ export function AppBootstrapScreen() {
         form,
         forms,
         drafts,
+        initialData,
+        currentData: initialData,
         datasets: rowsFromDatasetResponse(cached),
         datasetStatus: cached ? "Using cached data" : undefined,
+        formVariables: {},
+        globalVariables,
       });
-      void refreshDatasets(appCode, form, {});
+      void refreshDatasets(appCode, form, initialData, { form: {}, global: globalVariables });
     } catch (e: any) {
       setError(e.message ?? "Failed to load form");
       setStage({ kind: "home", appCode, forms, drafts, activeTab });
@@ -139,7 +154,8 @@ export function AppBootstrapScreen() {
 
     try {
       const form = await api.latestForm(appCode, draft.formKey);
-      const cached = await getCachedDatasets(appCode, form, draft.data);
+      const globalVariables = await loadGlobalVariables(appCode);
+      const cached = await getCachedDatasets(appCode, form, draft.data, { form: {}, global: globalVariables });
       setStage({
         kind: "renderForm",
         appCode,
@@ -152,8 +168,10 @@ export function AppBootstrapScreen() {
         currentData: draft.data,
         datasets: rowsFromDatasetResponse(cached),
         datasetStatus: cached ? "Using cached data" : undefined,
+        formVariables: {},
+        globalVariables,
       });
-      void refreshDatasets(appCode, form, draft.data);
+      void refreshDatasets(appCode, form, draft.data, { form: {}, global: globalVariables });
     } catch (e: any) {
       setError(e.message ?? "Failed to load draft form");
       setStage({ kind: "home", appCode, forms, drafts, activeTab: "drafts" });
@@ -194,11 +212,11 @@ export function AppBootstrapScreen() {
     });
   }
 
-  async function refreshDatasets(appCode: string, form: FormDefinition, data: FormState) {
+  async function refreshDatasets(appCode: string, form: FormDefinition, data: FormState, variables?: { form?: Record<string, unknown>; global?: Record<string, unknown> }) {
     if (!Array.isArray(form.dataSources) || form.dataSources.length === 0) return;
     try {
-      const response = await api.fetchDatasets(appCode, form, data);
-      await saveCachedDatasets(appCode, form, data, response);
+      const response = await api.fetchDatasets(appCode, form, data, variables);
+      await saveCachedDatasets(appCode, form, data, response, variables);
       setStage((current) => (
         current.kind === "renderForm" && current.appCode === appCode && current.formKey === form.formKey && current.form.version === form.version
           ? { ...current, datasets: rowsFromDatasetResponse(response), datasetStatus: "Data refreshed" }
@@ -213,12 +231,12 @@ export function AppBootstrapScreen() {
     }
   }
 
-  function scheduleDatasetRefresh(appCode: string, form: FormDefinition, data: FormState) {
+  function scheduleDatasetRefresh(appCode: string, form: FormDefinition, data: FormState, variables?: { form?: Record<string, unknown>; global?: Record<string, unknown> }) {
     if (!Array.isArray(form.dataSources) || form.dataSources.length === 0) return;
     if (datasetRefreshRef.current) clearTimeout(datasetRefreshRef.current);
     datasetRefreshRef.current = setTimeout(() => {
       void (async () => {
-        const cached = await getCachedDatasets(appCode, form, data);
+        const cached = await getCachedDatasets(appCode, form, data, variables);
         if (cached) {
           setStage((current) => (
             current.kind === "renderForm" && current.appCode === appCode && current.formKey === form.formKey
@@ -226,7 +244,7 @@ export function AppBootstrapScreen() {
               : current
           ));
         }
-        await refreshDatasets(appCode, form, data);
+        await refreshDatasets(appCode, form, data, variables);
       })();
     }, 500);
   }
@@ -399,15 +417,15 @@ export function AppBootstrapScreen() {
         datasets={stage.datasets ?? {}}
         onChange={(data) => {
           setStage((current) => (current.kind === "renderForm" ? { ...current, currentData: data } : current));
-          scheduleDatasetRefresh(stage.appCode, stage.form, data);
+          scheduleDatasetRefresh(stage.appCode, stage.form, data, { form: stage.formVariables ?? {}, global: stage.globalVariables ?? {} });
         }}
         onSaveDraft={async (data) => {
           const draft = await saveDraft({
             appCode: stage.appCode,
             formKey: stage.formKey,
             formTitle: stage.form.title ?? stage.formKey,
-            formVersion: stage.form.version,
-            data,
+        formVersion: stage.form.version,
+        data,
             draftId: currentDraftId ?? stage.draftId,
           });
           setCurrentDraftId(draft.id);
@@ -426,6 +444,7 @@ export function AppBootstrapScreen() {
             createdAt: now,
             updatedAt: now,
             triggerKey: options?.triggerKey,
+            variables: options?.variables,
             data,
           };
 
@@ -447,6 +466,34 @@ export function AppBootstrapScreen() {
           } finally {
             setSubmitting(false);
           }
+        }}
+        variables={{
+          form: stage.formVariables ?? {},
+          global: stage.globalVariables ?? {},
+        }}
+        onVariablesChange={async (variables) => {
+          if (variables.global) await saveGlobalVariables(stage.appCode, variables.global);
+          scheduleDatasetRefresh(stage.appCode, stage.form, stage.currentData ?? {}, variables);
+          setStage((current) => (
+            current.kind === "renderForm"
+              ? {
+                  ...current,
+                  formVariables: variables.form ?? current.formVariables,
+                  globalVariables: variables.global ?? current.globalVariables,
+                }
+              : current
+          ));
+        }}
+        onOpenForm={async (request) => {
+          const targetAppCode = request.appCode ?? stage.appCode;
+          let forms = stage.forms;
+          let drafts = stage.drafts;
+          if (targetAppCode !== stage.appCode) {
+            const boot = await api.bootstrap(targetAppCode);
+            forms = boot.forms;
+            drafts = await listDrafts(boot.app.appCode);
+          }
+          await openForm(targetAppCode, request.formKey, forms, drafts, "forms", request.initialData ?? {});
         }}
       />
       {submitting ? (

@@ -7,6 +7,13 @@ export class FetchFormDatasetsDto {
   @IsObject()
   @IsOptional()
   data?: Record<string, unknown>;
+
+  @IsObject()
+  @IsOptional()
+  variables?: {
+    form?: Record<string, unknown>;
+    global?: Record<string, unknown>;
+  };
 }
 
 export class PreviewFormDataSourceDto {
@@ -16,4 +23,11 @@ export class PreviewFormDataSourceDto {
   @IsObject()
   @IsOptional()
   data?: Record<string, unknown>;
+
+  @IsObject()
+  @IsOptional()
+  variables?: {
+    form?: Record<string, unknown>;
+    global?: Record<string, unknown>;
+  };
 }

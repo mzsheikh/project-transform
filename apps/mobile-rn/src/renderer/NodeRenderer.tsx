@@ -5,7 +5,7 @@ import type { DataSourceDatasetMap, LayoutNode, Node } from "@transform/contract
 import type { SubmissionDataValue } from "@transform/contracts/submission-types";
 import { resolveControlState } from "@transform/contracts/expressions";
 
-import type { ExecuteButtonActions, FormState, SetValue } from "./types";
+import type { ExecuteButtonActions, FormState, RendererVariables, SetValue, VariableMap } from "./types";
 
 import { LayoutRenderer } from "./LayoutRenderer";
 import { ControlRenderer } from "./controls/ControlRenderer";
@@ -16,38 +16,53 @@ export type NodeRendererProps = {
   data: FormState;
   rootData?: FormState;
   datasets?: DataSourceDatasetMap;
+  variables?: RendererVariables;
+  rowVariablesByKey?: Record<string, VariableMap>;
   setValue: SetValue;
   errors: Record<string, string>;
   onButtonPress?: ExecuteButtonActions;
   errorPrefix?: string;
   rowIndex?: number;
+  rowScopeKey?: string;
 };
 
-export function NodeRenderer({ node, data, rootData = data, datasets = {}, setValue, errors, onButtonPress, errorPrefix = "", rowIndex }: NodeRendererProps) {
+export function NodeRenderer({ node, data, rootData = data, datasets = {}, variables = {}, rowVariablesByKey = {}, setValue, errors, onButtonPress, errorPrefix = "", rowIndex, rowScopeKey }: NodeRendererProps) {
+  const scopedVariables = rowScopeKey
+    ? { ...variables, row: rowVariablesByKey[rowScopeKey] ?? {} }
+    : variables;
+
   if (node.type === "layout") {
     if (node.layoutType === "repeater") {
-      return <RepeatSectionRenderer node={node} data={data} rootData={rootData} datasets={datasets} setValue={setValue} errors={errors} onButtonPress={onButtonPress} errorPrefix={errorPrefix} />;
+      return <RepeatSectionRenderer node={node} data={data} rootData={rootData} datasets={datasets} variables={variables} rowVariablesByKey={rowVariablesByKey} setValue={setValue} errors={errors} onButtonPress={onButtonPress} errorPrefix={errorPrefix} />;
     }
 
     return (
       <LayoutRenderer
         node={node}
         renderNode={(child) => (
-          <NodeRenderer node={child} data={data} rootData={rootData} datasets={datasets} setValue={setValue} errors={errors} onButtonPress={onButtonPress} errorPrefix={errorPrefix} rowIndex={rowIndex} />
+          <NodeRenderer node={child} data={data} rootData={rootData} datasets={datasets} variables={variables} rowVariablesByKey={rowVariablesByKey} setValue={setValue} errors={errors} onButtonPress={onButtonPress} errorPrefix={errorPrefix} rowIndex={rowIndex} rowScopeKey={rowScopeKey} />
         )}
       />
     );
   }
 
-  const state = resolveControlState(node, { rootData, itemData: data, rowIndex, datasets });
+  const state = resolveControlState(node, { rootData, itemData: data, rowIndex, datasets, variables: scopedVariables });
   if (!state.visible) return null;
-  const effectiveNode = { ...node, props: state.props };
+  const effectiveNode = node.controlType === "listview"
+    ? { ...node, props: { ...(node.props ?? {}), disabled: state.disabled, readOnly: state.readOnly } }
+    : { ...node, props: state.props };
   const errorKey = errorPrefix ? `${errorPrefix}.${node.key}` : node.key;
+  const actionContext = { itemData: data, rowIndex, rowScopeKey, rowVariables: rowScopeKey ? rowVariablesByKey[rowScopeKey] ?? {} : {} };
 
   return (
     <ControlRenderer
       node={effectiveNode}
       value={data[node.key]}
+      rootData={rootData}
+      datasets={datasets}
+      variables={scopedVariables}
+      rowVariablesByKey={rowVariablesByKey}
+      actionContext={actionContext}
       setValue={setValue}
       onButtonPress={onButtonPress}
       error={errors[errorKey] ?? state.errors[0]?.message}
@@ -60,6 +75,8 @@ function RepeatSectionRenderer({
   data,
   rootData,
   datasets,
+  variables,
+  rowVariablesByKey,
   setValue,
   errors,
   onButtonPress,
@@ -69,6 +86,8 @@ function RepeatSectionRenderer({
   data: FormState;
   rootData: FormState;
   datasets: DataSourceDatasetMap;
+  variables: RendererVariables;
+  rowVariablesByKey: Record<string, VariableMap>;
   setValue: SetValue;
   errors: Record<string, string>;
   onButtonPress?: ExecuteButtonActions;
@@ -121,6 +140,7 @@ function RepeatSectionRenderer({
 
       {items.map((item, index) => {
         const itemPrefix = `${repeaterErrorKey}.${index}`;
+        const itemScopeKey = itemPrefix;
         const itemSetValue: SetValue = (childKey, value) => {
           const next = items.map((existing, i) => (i === index ? { ...existing, [childKey]: value } : existing));
           commit(next);
@@ -147,11 +167,14 @@ function RepeatSectionRenderer({
                   data={item}
                   rootData={rootData}
                   datasets={datasets}
+                  variables={variables}
+                  rowVariablesByKey={rowVariablesByKey}
                   setValue={itemSetValue}
                   errors={errors}
                   onButtonPress={onButtonPress}
                   errorPrefix={itemPrefix}
                   rowIndex={index}
+                  rowScopeKey={itemScopeKey}
                 />
               )}
             />

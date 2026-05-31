@@ -3,7 +3,7 @@
 import type { SubmitActionType } from "./action-types";
 import type { SubmissionDataValue } from "./submission-types";
 
-export type SchemaVersion = "1.0" | "1.1" | "1.2";
+export type SchemaVersion = "1.0" | "1.1" | "1.2" | "1.3";
 export type ExpressionString = `=${string}`;
 export type DynamicValue<T> = T | ExpressionString;
 
@@ -12,6 +12,7 @@ export type DataSourceType = "database" | "rest_api";
 export type DataSourceParamValue = DynamicValue<string | number | boolean | null>;
 export type DataSourceRows = Record<string, unknown>[];
 export type DataSourceDatasetMap = Record<string, DataSourceRows>;
+export type VariableScope = "row" | "form" | "global";
 
 export interface BaseDataSourceDefinition {
   key: string;
@@ -122,7 +123,8 @@ export type ControlType =
   | "signature"
   | "image"
   | "file"
-  | "button";
+  | "button"
+  | "listview";
 
 export interface ControlNode extends BaseNode {
   type: "control";
@@ -142,7 +144,8 @@ export type ControlProps =
   | SignatureProps
   | ImageProps
   | FileProps
-  | ButtonProps;
+  | ButtonProps
+  | ListViewProps;
 
 export interface BaseControlProps {
   [key: string]: unknown;
@@ -319,7 +322,7 @@ export interface FileProps extends BaseControlProps {
   allowedMimeTypes?: string[];
 }
 
-export type ButtonActionType = "save_draft" | SubmitActionType;
+export type ButtonActionType = "save_draft" | SubmitActionType | "set_variable" | "open_form";
 
 export type ButtonAction =
   | {
@@ -332,12 +335,38 @@ export type ButtonAction =
       type: SubmitActionType;
       enabled?: DynamicValue<boolean>;
       clearDraftOnSuccess?: boolean;
+    }
+  | {
+      id: string;
+      type: "set_variable";
+      enabled?: DynamicValue<boolean>;
+      scope?: VariableScope;
+      key: DynamicValue<string>;
+      value?: unknown;
+    }
+  | {
+      id: string;
+      type: "open_form";
+      enabled?: DynamicValue<boolean>;
+      formKey: DynamicValue<string>;
+      appCode?: DynamicValue<string>;
+      initialData?: DynamicValue<Record<string, unknown>>;
     };
 
 export interface ButtonProps extends BaseControlProps {
   text?: DynamicValue<string>;
   variant?: "primary" | "secondary" | "danger";
   actions: ButtonAction[];
+}
+
+export interface ListViewProps extends BaseControlProps {
+  data: DynamicValue<Record<string, unknown>[]>;
+  keyField?: DynamicValue<string>;
+  title?: DynamicValue<string>;
+  subtitle?: DynamicValue<string>;
+  description?: DynamicValue<string>;
+  emptyText?: DynamicValue<string>;
+  actions?: ButtonAction[];
 }
 
 export type SharedControlProps = BaseControlProps;

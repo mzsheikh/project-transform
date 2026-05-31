@@ -318,6 +318,7 @@ function controlIcon(type: ControlNode["controlType"]) {
   if (type === "dropdown" || type === "multiselect") return <ChevronListIcon />;
   if (type === "file" || type === "image") return <FileIcon />;
   if (type === "button") return <ButtonIcon />;
+  if (type === "listview") return <ChevronListIcon />;
   return <span style={{ fontFamily: "serif", fontSize: 25 }}>T</span>;
 }
 

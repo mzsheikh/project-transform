@@ -37,6 +37,13 @@ export type ExpressionContext = {
   rowIndex?: number;
   today?: Date;
   datasets?: DataSourceDatasetMap;
+  variables?: ExpressionVariableState;
+};
+
+export type ExpressionVariableState = {
+  row?: Record<string, unknown>;
+  form?: Record<string, unknown>;
+  global?: Record<string, unknown>;
 };
 
 export type ResolvedControlState = {
@@ -181,6 +188,7 @@ export function evaluateCalculatedFormData(
   form: FormDefinition,
   inputData: Record<string, unknown>,
   datasets: DataSourceDatasetMap = {},
+  variables: ExpressionVariableState = {},
 ): { data: Record<string, SubmissionDataValue>; errors: ExpressionRuntimeError[] } {
   const data = cloneRecord(inputData) as Record<string, SubmissionDataValue>;
   const errors: ExpressionRuntimeError[] = [];
@@ -188,7 +196,7 @@ export function evaluateCalculatedFormData(
 
   for (let i = 0; i < iterations; i += 1) {
     const before = stableJson(data);
-    applyNodeExpressions(form.root, data, data, errors, undefined, undefined, datasets);
+    applyNodeExpressions(form.root, data, data, errors, undefined, undefined, datasets, variables);
     if (stableJson(data) === before) break;
   }
 
@@ -250,7 +258,11 @@ export function validateFormExpressions(form: FormDefinition): ExpressionIssue[]
     }
 
     if (node.controlType === "button") {
-      issues.push(...validateButtonActions(props, `${path}.props.actions`, node.key));
+      issues.push(...validateControlActions(props, `${path}.props.actions`, node.key, true));
+    }
+
+    if (isListViewControlType(node.controlType)) {
+      issues.push(...validateControlActions(props, `${path}.props.actions`, node.key, false));
     }
 
     const expressionProps = [
@@ -274,7 +286,8 @@ export function validateFormExpressions(form: FormDefinition): ExpressionIssue[]
 
       const dependencies = collectDependencies(ast);
       for (const dependency of dependencies) {
-        if (!dependencyExists(dependency, registry)) {
+        const allowedListViewItemDependency = isListViewControlType(node.controlType) && dependency.kind === "item";
+        if (!allowedListViewItemDependency && !dependencyExists(dependency, registry)) {
           issues.push({
             code: "expression.missingReference",
             path: expressionPath,
@@ -420,20 +433,23 @@ function isReadOnlySql(query: string): boolean {
   return !/\b(insert|update|delete|drop|alter|truncate|create|merge|grant|revoke|call|execute|exec)\b/.test(normalized);
 }
 
-function validateButtonActions(
+function validateControlActions(
   props: Record<string, unknown>,
   path: string,
   key: string,
+  requireActions: boolean,
 ): ExpressionIssue[] {
   const actions = props.actions;
   const issues: ExpressionIssue[] = [];
 
   if (!Array.isArray(actions) || actions.length === 0) {
-    return [{
-      code: "button.actionsRequired",
-      path,
-      message: `Button "${key}" must define at least one action.`,
-    }];
+    return requireActions
+      ? [{
+          code: "button.actionsRequired",
+          path,
+          message: `Control "${key}" must define at least one action.`,
+        }]
+      : [];
   }
 
   let enabledCount = 0;
@@ -452,21 +468,53 @@ function validateButtonActions(
       action.type !== "save_draft" &&
       action.type !== "email_pdf" &&
       action.type !== "database" &&
-      action.type !== "rest_api"
+      action.type !== "rest_api" &&
+      action.type !== "set_variable" &&
+      action.type !== "open_form"
     ) {
       issues.push({
         code: "button.invalidActionType",
         path: `${path}.${index}.type`,
-        message: `Button "${key}" action type is invalid.`,
+        message: `Control "${key}" action type is invalid.`,
+      });
+    }
+
+    if (action.type === "set_variable") {
+      if (typeof action.key !== "string" || action.key.trim().length === 0) {
+        issues.push({
+          code: "button.invalidVariableAction",
+          path: `${path}.${index}.key`,
+          message: `Set variable action on "${key}" must define a variable key.`,
+        });
+      }
+      if (
+        action.scope !== undefined &&
+        action.scope !== "row" &&
+        action.scope !== "form" &&
+        action.scope !== "global"
+      ) {
+        issues.push({
+          code: "button.invalidVariableScope",
+          path: `${path}.${index}.scope`,
+          message: `Set variable action on "${key}" has an invalid scope.`,
+        });
+      }
+    }
+
+    if (action.type === "open_form" && (typeof action.formKey !== "string" || action.formKey.trim().length === 0)) {
+      issues.push({
+        code: "button.invalidOpenFormAction",
+        path: `${path}.${index}.formKey`,
+        message: `Open form action on "${key}" must define a form key.`,
       });
     }
   });
 
-  if (enabledCount === 0) {
+  if (requireActions && enabledCount === 0) {
     issues.push({
       code: "button.enabledActionRequired",
       path,
-      message: `Button "${key}" must have at least one enabled action.`,
+      message: `Control "${key}" must have at least one enabled action.`,
     });
   }
 
@@ -499,10 +547,11 @@ function applyNodeExpressions(
   rowIndex: number | undefined,
   errorPrefix: string | undefined,
   datasets: DataSourceDatasetMap,
+  variables: ExpressionVariableState,
 ) {
   if (node.type === "control") {
-    if (node.controlType === "button") return;
-    applyControlExpressions(node, rootData, scopeData, errors, rowIndex, errorPrefix, datasets);
+    if (node.controlType === "button" || isListViewControlType(node.controlType)) return;
+    applyControlExpressions(node, rootData, scopeData, errors, rowIndex, errorPrefix, datasets, variables);
     return;
   }
 
@@ -513,14 +562,23 @@ function applyNodeExpressions(
     current.forEach((item, index) => {
       if (!isRecord(item)) return;
       node.children.forEach((child) => {
-        applyNodeExpressions(child, rootData, item, errors, index, errorPrefix ? `${errorPrefix}.${index}` : `${repeaterKey}.${index}`, datasets);
+        applyNodeExpressions(
+          child,
+          rootData,
+          item,
+          errors,
+          index,
+          errorPrefix ? `${errorPrefix}.${index}` : `${repeaterKey}.${index}`,
+          datasets,
+          { ...variables, row: variables.row ?? {} },
+        );
       });
     });
     return;
   }
 
   node.children.forEach((child) => {
-    applyNodeExpressions(child, rootData, scopeData, errors, rowIndex, errorPrefix, datasets);
+    applyNodeExpressions(child, rootData, scopeData, errors, rowIndex, errorPrefix, datasets, variables);
   });
 }
 
@@ -532,6 +590,7 @@ function applyControlExpressions(
   rowIndex: number | undefined,
   errorPrefix: string | undefined,
   datasets: DataSourceDatasetMap,
+  variables: ExpressionVariableState,
 ) {
   const props = isRecord(node.props) ? node.props : {};
   const context: ExpressionContext = {
@@ -539,6 +598,7 @@ function applyControlExpressions(
     itemData: scopeData,
     rowIndex,
     datasets,
+    variables,
   };
   const target = scopeData as Record<string, unknown>;
   const errorKey = errorPrefix ? `${errorPrefix}.${node.key}` : node.key;
@@ -1013,6 +1073,18 @@ function evaluateCall(node: Extract<AstNode, { kind: "call" }>, context: Express
     case "DATA":
       requireArgCount(name, node.args, 1, 1);
       return context.datasets?.[String(args[0] ?? "")] ?? [];
+    case "VAR":
+      requireArgCount(name, node.args, 1, 1);
+      return readVariable(context.variables, String(args[0] ?? ""), "auto");
+    case "ROWVAR":
+      requireArgCount(name, node.args, 1, 1);
+      return readVariable(context.variables, String(args[0] ?? ""), "row");
+    case "FORMVAR":
+      requireArgCount(name, node.args, 1, 1);
+      return readVariable(context.variables, String(args[0] ?? ""), "form");
+    case "GLOBALVAR":
+      requireArgCount(name, node.args, 1, 1);
+      return readVariable(context.variables, String(args[0] ?? ""), "global");
     case "FIRST": {
       requireArgCount(name, node.args, 1, 1);
       const rows = asList(args[0]);
@@ -1194,6 +1266,21 @@ function resolveIdentifier(name: string, context: ExpressionContext): unknown {
   return null;
 }
 
+function readVariable(
+  variables: ExpressionVariableState | undefined,
+  key: string,
+  scope: "auto" | "row" | "form" | "global",
+): unknown {
+  if (!variables || !key) return null;
+  if (scope === "row") return variables.row?.[key] ?? null;
+  if (scope === "form") return variables.form?.[key] ?? null;
+  if (scope === "global") return variables.global?.[key] ?? null;
+  if (variables.row && Object.prototype.hasOwnProperty.call(variables.row, key)) return variables.row[key];
+  if (variables.form && Object.prototype.hasOwnProperty.call(variables.form, key)) return variables.form[key];
+  if (variables.global && Object.prototype.hasOwnProperty.call(variables.global, key)) return variables.global[key];
+  return null;
+}
+
 function collectExpressionProps(value: unknown, path: string): Array<{ path: string; expression: string }> {
   if (isExpressionString(value)) return [{ path, expression: value }];
   if (isEscapedExpressionString(value)) return [];
@@ -1255,6 +1342,7 @@ function buildRegistry(root: LayoutNode, dataSourceKeys = new Set<string>()) {
 
   function walk(node: Node, currentRepeaterKey?: string) {
     if (node.type === "control") {
+      if (node.controlType === "button" || isListViewControlType(node.controlType)) return;
       controlKeys.add(node.key);
       if (currentRepeaterKey) {
         const fields = repeaterFields.get(currentRepeaterKey) ?? new Set<string>();
@@ -1270,6 +1358,10 @@ function buildRegistry(root: LayoutNode, dataSourceKeys = new Set<string>()) {
 
   walk(root);
   return { controlKeys, repeaterKeys, repeaterFields, dataSourceKeys };
+}
+
+function isListViewControlType(controlType: unknown): boolean {
+  return controlType === "listview" || controlType === "listView" || controlType === "list_view";
 }
 
 function dependencyExists(

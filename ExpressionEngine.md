@@ -99,6 +99,90 @@ Use explicit repeater helpers when the scope needs to be clear:
 =SUM(ITEMS("expenses", "amount"))
 ```
 
+## Variables
+
+Button and list view actions can store variables with the `set_variable`
+action. Variables are available to expressions through:
+
+```text
+=VAR("selectedCustomerId")
+=ROWVAR("rowTotal")
+=FORMVAR("inspectionMode")
+=GLOBALVAR("siteId")
+```
+
+Scopes:
+
+- `row`: available during the current tapped row/action chain.
+- `form`: available while the current form is open.
+- `global`: persisted locally on the device for the current app and available
+  when another form is opened.
+
+Example button action that stores a selected customer id globally:
+
+```json
+{
+  "id": "action_store_customer",
+  "type": "set_variable",
+  "scope": "global",
+  "key": "customerId",
+  "value": "=FIELD(\"customerId\")"
+}
+```
+
+Example expression in another form:
+
+```text
+=GLOBALVAR("customerId")
+```
+
+## Data Source Binding And List Views
+
+Data-source rows are available through `DATA("sourceKey")`. A list view control
+can render those rows, and row templates can use `ITEM("columnName")`.
+
+Example list view:
+
+```json
+{
+  "key": "customersList",
+  "controlType": "listview",
+  "label": "Customers",
+  "props": {
+    "data": "=DATA(\"customers\")",
+    "keyField": "id",
+    "title": "=ITEM(\"name\")",
+    "subtitle": "=ITEM(\"email\")",
+    "actions": [
+      {
+        "id": "select_customer",
+        "type": "set_variable",
+        "scope": "global",
+        "key": "customerId",
+        "value": "=ITEM(\"id\")"
+      },
+      {
+        "id": "open_inspection",
+        "type": "open_form",
+        "formKey": "inspection"
+      }
+    ]
+  }
+}
+```
+
+Example dropdown options from a data source:
+
+```text
+=OPTIONS(DATA("customers"), "name", "id")
+```
+
+Example read-only selected customer name:
+
+```text
+=LOOKUP(DATA("customers"), "id", GLOBALVAR("customerId"), "name")
+```
+
 ## Literals
 
 Supported literal values:
@@ -332,6 +416,29 @@ Date functions return dates as `YYYY-MM-DD` strings.
 | `ITEM(key)` | Value from current repeater row | `=ITEM("amount")` |
 | `ITEMS(repeaterKey, fieldKey)` | List of values from repeater rows | `=ITEMS("expenses", "amount")` |
 | `ROW()` | Current repeater row number, starting at 1 | `=ROW()` |
+
+### Variable Functions
+
+| Function | Returns | Example |
+| --- | --- | --- |
+| `VAR(name)` | First matching row, form, then global variable | `=VAR("customerId")` |
+| `ROWVAR(name)` | Current row variable | `=ROWVAR("selectedSku")` |
+| `FORMVAR(name)` | Current form variable | `=FORMVAR("mode")` |
+| `GLOBALVAR(name)` | App-wide local variable | `=GLOBALVAR("siteId")` |
+
+### Dataset Functions
+
+| Function | Description | Example |
+| --- | --- | --- |
+| `DATA(key)` | Rows for a form data source | `=DATA("customers")` |
+| `FIRST(list)` | First item or blank | `=FIRST(DATA("customers"))` |
+| `FILTER(rows, field, value)` | Rows where a field equals a value | `=FILTER(DATA("customers"), "status", "active")` |
+| `LOOKUP(rows, keyField, keyValue, returnField)` | Finds one row and returns one field | `=LOOKUP(DATA("customers"), "id", customerId, "name")` |
+| `PLUCK(rows, field)` | List of field values | `=PLUCK(DATA("customers"), "name")` |
+| `OPTION_LABEL(rows, keyField, keyValue, labelField)` | Display label for a selected id | `=OPTION_LABEL(DATA("customers"), "id", customerId, "name")` |
+| `PATH(object, path)` | Nested object value | `=PATH(FIRST(DATA("profile")), "address.city")` |
+| `SORT(rows, field)` | Sorted rows | `=SORT(DATA("customers"), "name")` |
+| `TAKE(rows, count)` | First N rows | `=TAKE(DATA("customers"), 20)` |
 
 ### Math Functions
 

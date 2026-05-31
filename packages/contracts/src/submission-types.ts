@@ -17,6 +17,12 @@ export interface FileRefLocal {
 }
 
 export type RepeatedItemData = Record<string, SubmissionDataValue>;
+export type SubmissionVariableMap = Record<string, unknown>;
+
+export interface SubmissionVariables {
+  form?: SubmissionVariableMap;
+  global?: SubmissionVariableMap;
+}
 
 export type SubmissionDataValue =
   | string
@@ -37,6 +43,7 @@ export interface SubmissionPayload {
   createdAt: string;      // ISO string
   updatedAt: string;      // ISO string
   triggerKey?: string;
+  variables?: SubmissionVariables;
 
   data: Record<string, SubmissionDataValue>;
 }

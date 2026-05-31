@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import type { DataSourceDatasetMap, FormDefinition } from "@transform/contracts/form-types";
 import { resolveDynamicValue } from "@transform/contracts/expressions";
-import type { FormState } from "../renderer/types";
+import type { FormState, RendererVariables } from "../renderer/types";
 
 const DATASETS_PREFIX = "transform-mobile-datasets";
 
@@ -27,8 +27,9 @@ export async function getCachedDatasets(
   appCode: string,
   form: FormDefinition,
   data: FormState,
+  variables: RendererVariables = {},
 ): Promise<DatasetFetchResponse | null> {
-  const raw = await AsyncStorage.getItem(datasetCacheKey(appCode, form, data));
+  const raw = await AsyncStorage.getItem(datasetCacheKey(appCode, form, data, variables));
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw);
@@ -43,17 +44,18 @@ export async function saveCachedDatasets(
   form: FormDefinition,
   data: FormState,
   response: DatasetFetchResponse,
+  variables: RendererVariables = {},
 ): Promise<void> {
-  await AsyncStorage.setItem(datasetCacheKey(appCode, form, data), JSON.stringify(response));
+  await AsyncStorage.setItem(datasetCacheKey(appCode, form, data, variables), JSON.stringify(response));
 }
 
-function datasetCacheKey(appCode: string, form: FormDefinition, data: FormState): string {
-  return `${DATASETS_PREFIX}:${appCode}:${form.formKey}:${form.version}:${paramHash(form, data)}`;
+function datasetCacheKey(appCode: string, form: FormDefinition, data: FormState, variables: RendererVariables): string {
+  return `${DATASETS_PREFIX}:${appCode}:${form.formKey}:${form.version}:${paramHash(form, data, variables)}`;
 }
 
-function paramHash(form: FormDefinition, data: FormState): string {
+function paramHash(form: FormDefinition, data: FormState, variables: RendererVariables): string {
   const params = (form.dataSources ?? []).map((source) => {
-    const resolved = resolveDynamicValue(source.params ?? {}, { rootData: data }, `dataSources.${source.key}.params`);
+    const resolved = resolveDynamicValue(source.params ?? {}, { rootData: data, variables }, `dataSources.${source.key}.params`);
     return {
       key: source.key,
       params: resolved.errors.length > 0 ? {} : resolved.value,

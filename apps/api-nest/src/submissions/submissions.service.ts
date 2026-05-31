@@ -42,7 +42,7 @@ export class SubmissionsService {
     const triggerKey = this.resolveTriggerKey(schema, dto.triggerKey);
     const datasetRows = await this.fetchDatasetRows(appCode, formKey, schema, dto);
 
-    const validation = validateAndNormalizeSubmissionData(form.schemaJson, dto.data, datasetRows);
+    const validation = validateAndNormalizeSubmissionData(form.schemaJson, dto.data, datasetRows, dto.variables ?? {});
     const errors = validation.errors;
     if (errors.length > 0) {
       throw new BadRequestException({ message: "Submission validation failed", errors });
@@ -166,20 +166,20 @@ export class SubmissionsService {
     const normalized = typeof triggerKey === "string" && triggerKey.trim() ? triggerKey.trim() : null;
     if (!normalized) return null;
 
-    const buttonKeys = new Set<string>();
-    this.collectButtonKeys(form.root, buttonKeys);
-    if (!buttonKeys.has(normalized)) {
-      throw new BadRequestException(`triggerKey "${normalized}" does not match a button control.`);
+    const triggerKeys = new Set<string>();
+    this.collectTriggerKeys(form.root, triggerKeys);
+    if (!triggerKeys.has(normalized)) {
+      throw new BadRequestException(`triggerKey "${normalized}" does not match an action control.`);
     }
     return normalized;
   }
 
-  private collectButtonKeys(node: Node, keys: Set<string>) {
+  private collectTriggerKeys(node: Node, keys: Set<string>) {
     if (node.type === "control") {
-      if (node.controlType === "button") keys.add(node.key);
+      if (node.controlType === "button" || isListViewControlType(node.controlType)) keys.add(node.key);
       return;
     }
-    node.children.forEach((child) => this.collectButtonKeys(child, keys));
+    node.children.forEach((child) => this.collectTriggerKeys(child, keys));
   }
 
   private async fetchDatasetRows(appCode: string, formKey: string, schema: FormDefinition, dto: CreateSubmissionDto): Promise<DataSourceDatasetMap> {
@@ -187,9 +187,14 @@ export class SubmissionsService {
     const payload = await this.datasets.fetchPublished(appCode, formKey, {
       formVersion: dto.formVersion,
       data: dto.data,
+      variables: dto.variables,
     });
     return Object.fromEntries(
       Object.entries(payload.datasets).map(([key, dataset]) => [key, dataset.rows]),
     );
   }
+}
+
+function isListViewControlType(controlType: unknown): boolean {
+  return controlType === "listview" || controlType === "listView" || controlType === "list_view";
 }

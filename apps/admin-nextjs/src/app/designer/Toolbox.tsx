@@ -30,6 +30,7 @@ const CONTROLS: ToolboxEntry[] = [
   { label: "Image", item: { kind: "control", controlType: "image" }, icon: <ImageIcon /> },
   { label: "File", item: { kind: "control", controlType: "file" }, icon: <FileIcon /> },
   { label: "Button", item: { kind: "control", controlType: "button" }, icon: <ButtonIcon /> },
+  { label: "List View", item: { kind: "control", controlType: "listview" }, icon: <ListViewIcon /> },
 ];
 
 export function Toolbox({
@@ -379,6 +380,16 @@ function ButtonIcon() {
     <svg viewBox="0 0 16 16" style={iconBase} aria-hidden>
       <rect x="2.5" y="4.5" width="11" height="7" rx="2" stroke="currentColor" strokeWidth="1.4" fill="none" />
       <path d="M5.5 8h5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ListViewIcon() {
+  return (
+    <svg viewBox="0 0 16 16" style={iconBase} aria-hidden>
+      <rect x="2" y="2.5" width="12" height="3" rx="1" fill="currentColor" opacity="0.9" />
+      <rect x="2" y="6.5" width="12" height="3" rx="1" fill="currentColor" opacity="0.65" />
+      <rect x="2" y="10.5" width="12" height="3" rx="1" fill="currentColor" opacity="0.4" />
     </svg>
   );
 }

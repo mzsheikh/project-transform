@@ -199,7 +199,7 @@ export class FormDatabaseMappingsService {
   private walkChildren(children: Node[], currentTable: DatabaseMappingTable, tables: DatabaseMappingTable[], formKey: string) {
     for (const child of children) {
       if (child.type === "control") {
-        if (child.controlType !== "button") currentTable.columns.push(this.controlToColumn(child));
+        if (child.controlType !== "button" && !isListViewControlType(child.controlType)) currentTable.columns.push(this.controlToColumn(child));
         continue;
       }
 
@@ -324,6 +324,10 @@ export class FormDatabaseMappingsService {
       ? (value as Record<string, unknown>)
       : {};
   }
+}
+
+function isListViewControlType(controlType: unknown): boolean {
+  return controlType === "listview" || controlType === "listView" || controlType === "list_view";
 }
 
 function inferFieldType(node: ControlNode): DatabaseFieldType {

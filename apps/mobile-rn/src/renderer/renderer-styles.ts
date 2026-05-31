@@ -106,6 +106,25 @@ export const styles = StyleSheet.create({
   buttonSecondaryText: { color: "#111", fontWeight: "700" },
   buttonDisabled: { opacity: 0.5 },
 
+  listView: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: "#fff",
+  },
+  listViewItem: {
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+    gap: 4,
+  },
+  listViewTitle: { fontWeight: "700", color: "#111" },
+  listViewSubtitle: { color: "#475467" },
+  listViewDescription: { color: "#667085", fontSize: 13, lineHeight: 18 },
+  listViewEmpty: { padding: 14, color: "#667085" },
+
   signatureBox: { borderWidth: 1, borderColor: "#ddd", borderRadius: 10, overflow: "hidden" },
   signatureFooter: { flexDirection: "row", alignItems: "center", gap: 12, padding: 8 },
   signatureHint: { opacity: 0.7 },

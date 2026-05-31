@@ -7,6 +7,7 @@ import type {
   Node,
   TextProps,
   ButtonProps,
+  ListViewProps,
 } from "@transform/contracts/form-types";
 import { isLayout, isControl } from "./types";
 
@@ -118,6 +119,19 @@ export function makeControl(controlType: ControlNode["controlType"]): ControlNod
       variant: "primary",
       actions: [],
     } satisfies ButtonProps;
+  }
+
+  if (controlType === "listview") {
+    base.label = "List View";
+    base.props = {
+      data: "=DATA(\"\")",
+      keyField: "id",
+      title: "=TEXT(ITEM(\"name\"))",
+      subtitle: "",
+      description: "",
+      emptyText: "No records found",
+      actions: [],
+    } satisfies ListViewProps;
   }
 
   return base;

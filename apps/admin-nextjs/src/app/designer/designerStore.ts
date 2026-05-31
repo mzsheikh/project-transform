@@ -478,6 +478,19 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
       };
     }
 
+    if (controlType === "listview") {
+      newControl.label = "List View";
+      newControl.props = {
+        data: "=DATA(\"\")",
+        keyField: "id",
+        title: "=TEXT(ITEM(\"name\"))",
+        subtitle: "",
+        description: "",
+        emptyText: "No records found",
+        actions: [],
+      };
+    }
+
     const nextRoot: LayoutNode =
       cur.root.id === parentLayoutId
         ? {

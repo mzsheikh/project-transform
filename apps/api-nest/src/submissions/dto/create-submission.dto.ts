@@ -10,6 +10,13 @@ export class CreateSubmissionDto {
   @IsObject()
   data!: Record<string, unknown>;
 
+  @IsObject()
+  @IsOptional()
+  variables?: {
+    form?: Record<string, unknown>;
+    global?: Record<string, unknown>;
+  };
+
   @IsString()
   @IsOptional()
   triggerKey?: string;

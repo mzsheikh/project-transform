@@ -2,7 +2,7 @@ import { API_BASE_URL } from "../config";
 import type { FormDefinition } from "@transform/contracts/form-types";
 import type { SubmissionAcceptedResponse } from "@transform/contracts/action-types";
 import type { SubmissionPayload } from "@transform/contracts/submission-types";
-import type { FormState } from "../renderer/types";
+import type { FormState, RendererVariables } from "../renderer/types";
 import type { DatasetFetchResponse } from "../storage/datasets";
 
 export type BootstrapFormItem = {
@@ -56,6 +56,7 @@ export const api = {
           submissionId: payload.submissionId,
           formVersion: payload.formVersion,
           triggerKey: payload.triggerKey,
+          variables: payload.variables,
           data: payload.data,
           createdAt: payload.createdAt,
           updatedAt: payload.updatedAt,
@@ -63,7 +64,7 @@ export const api = {
       },
     ),
 
-  fetchDatasets: (appCode: string, form: FormDefinition, data: FormState) =>
+  fetchDatasets: (appCode: string, form: FormDefinition, data: FormState, variables?: RendererVariables) =>
     req<DatasetFetchResponse>(
       `/apps/${encodeURIComponent(appCode)}/forms/${encodeURIComponent(form.formKey)}/datasets`,
       {
@@ -71,6 +72,7 @@ export const api = {
         body: JSON.stringify({
           formVersion: form.version,
           data,
+          variables,
         }),
       },
     ),

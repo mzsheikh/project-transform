@@ -18,6 +18,7 @@ import {
   resolveControlState,
   resolveDynamicValue,
 } from "./expressions";
+import type { ExpressionVariableState } from "./expressions";
 
 export type ValidationError = { key: string; message: string };
 
@@ -25,13 +26,14 @@ export function validateFormData(
   form: FormDefinition,
   data: Record<string, SubmissionDataValue>,
   datasets: DataSourceDatasetMap = {},
+  variables: ExpressionVariableState = {},
 ): ValidationError[] {
-  const calculated = evaluateCalculatedFormData(form, data, datasets);
+  const calculated = evaluateCalculatedFormData(form, data, datasets, variables);
   const errors: ValidationError[] = calculated.errors.map((error) => ({
     key: error.key ?? error.path,
     message: error.message,
   }));
-  validateNode(form.root, calculated.data, calculated.data, "", errors, datasets);
+  validateNode(form.root, calculated.data, calculated.data, "", errors, datasets, variables);
   return errors;
 }
 
@@ -42,11 +44,12 @@ function validateNode(
   prefix: string,
   errors: ValidationError[],
   datasets: DataSourceDatasetMap,
+  variables: ExpressionVariableState,
 ) {
   if (node.type === "control") {
-    if (node.controlType === "button") return;
+    if (node.controlType === "button" || isListViewControlType(node.controlType)) return;
     const props = (node.props ?? {}) as Record<string, unknown>;
-    const state = resolveControlState(node, { rootData, itemData: data, datasets });
+    const state = resolveControlState(node, { rootData, itemData: data, datasets, variables });
     const errorKey = prefix ? `${prefix}.${node.key}` : node.key;
     for (const error of state.errors) {
       errors.push({ key: errorKey, message: error.message });
@@ -54,7 +57,7 @@ function validateNode(
     if (!state.visible) return;
     if (state.disabled && props.value === undefined) return;
 
-    const validation = resolveValidation(node, rootData, data, errorKey, errors, datasets);
+    const validation = resolveValidation(node, rootData, data, errorKey, errors, datasets, variables);
     const effectiveNode: ControlNode = {
       ...node,
       props: state.props as ControlNode["props"],
@@ -67,11 +70,11 @@ function validateNode(
   }
 
   if (node.layoutType === "repeater") {
-    validateRepeater(node, rootData, data, prefix, errors, datasets);
+    validateRepeater(node, rootData, data, prefix, errors, datasets, variables);
     return;
   }
 
-  node.children.forEach((child) => validateNode(child, rootData, data, prefix, errors, datasets));
+  node.children.forEach((child) => validateNode(child, rootData, data, prefix, errors, datasets, variables));
 }
 
 function validateRepeater(
@@ -81,6 +84,7 @@ function validateRepeater(
   prefix: string,
   errors: ValidationError[],
   datasets: DataSourceDatasetMap,
+  variables: ExpressionVariableState,
 ) {
   const key = node.key ?? node.id;
   const value = data[key];
@@ -99,14 +103,14 @@ function validateRepeater(
 
   items.forEach((item, index) => {
     const childPrefix = `${errorKey}.${index}`;
-    node.children.forEach((child) => validateNode(child, rootData, item, childPrefix, errors, datasets));
+    node.children.forEach((child) => validateNode(child, rootData, item, childPrefix, errors, datasets, variables));
   });
 }
 
 export function validateControlValue(node: ControlNode, value: SubmissionDataValue): string[] {
   const errors: string[] = [];
 
-  if (node.controlType === "button") return errors;
+  if (node.controlType === "button" || isListViewControlType(node.controlType)) return errors;
 
   if (node.validation?.required === true && isEmptyValue(value)) {
     errors.push("This field is required.");
@@ -181,9 +185,10 @@ function resolveValidation(
   errorKey: string,
   errors: ValidationError[],
   datasets: DataSourceDatasetMap,
+  variables: ExpressionVariableState,
 ): ValidationRules | undefined {
   if (!node.validation) return undefined;
-  const resolved = resolveDynamicValue(node.validation, { rootData, itemData: data, datasets }, `controls.${node.key}.validation`);
+  const resolved = resolveDynamicValue(node.validation, { rootData, itemData: data, datasets, variables }, `controls.${node.key}.validation`);
   for (const error of resolved.errors) {
     errors.push({ key: errorKey, message: error.message });
   }
@@ -215,6 +220,10 @@ function isEmptyValue(v: SubmissionDataValue): boolean {
 
 function isRecordValue(value: unknown): value is Record<string, SubmissionDataValue> {
   return !!value && typeof value === "object" && !Array.isArray(value) && !("fileId" in (value as Record<string, unknown>));
+}
+
+function isListViewControlType(controlType: unknown): boolean {
+  return controlType === "listview" || controlType === "listView" || controlType === "list_view";
 }
 
 function numberValue(value: unknown): number | undefined {

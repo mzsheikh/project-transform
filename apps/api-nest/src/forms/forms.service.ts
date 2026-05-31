@@ -199,15 +199,15 @@ export class FormsService {
       buttonActionId: string | null;
     }>,
   ) {
-    const buttonKeys = new Set<string>();
-    this.collectButtonKeys(form.root, buttonKeys);
-    const invalid = actions.find((action) => action.triggerKey && !buttonKeys.has(action.triggerKey));
+    const triggerKeys = new Set<string>();
+    this.collectTriggerKeys(form.root, triggerKeys);
+    const invalid = actions.find((action) => action.triggerKey && !triggerKeys.has(action.triggerKey));
     if (invalid) {
       throw new BadRequestException({
         message: "Form submit action validation failed",
         errors: [{
           key: invalid.triggerKey,
-          message: `Submit action "${invalid.name}" references a button that does not exist.`,
+          message: `Submit action "${invalid.name}" references an action control that does not exist.`,
         }],
       });
     }
@@ -227,7 +227,7 @@ export class FormsService {
           message: "Form submit action validation failed",
           errors: [{
             key: ref.buttonKey,
-            message: `Button action "${ref.actionId}" must be configured before publishing.`,
+            message: `Control action "${ref.actionId}" must be configured before publishing.`,
           }],
         });
       }
@@ -239,7 +239,7 @@ export class FormsService {
         message: "Form submit action validation failed",
         errors: [{
           key: stale.triggerKey,
-          message: `Submit action "${stale.name}" is linked to a button action that no longer exists.`,
+          message: `Submit action "${stale.name}" is linked to a control action that no longer exists.`,
         }],
       });
     }
@@ -291,7 +291,7 @@ export class FormsService {
     const refs: ButtonSubmitActionRef[] = [];
     const walk = (node: Node) => {
       if (node.type === "control") {
-        if (node.controlType !== "button") return;
+        if (node.controlType !== "button" && !isListViewControlType(node.controlType)) return;
         const actions = Array.isArray(node.props?.actions) ? node.props.actions : [];
         actions.forEach((action, index) => {
           if (!action || !this.isSubmitActionType(action.type)) return;
@@ -315,12 +315,12 @@ export class FormsService {
     return type === "email_pdf" || type === "database" || type === "rest_api";
   }
 
-  private collectButtonKeys(node: FormDefinition["root"] | FormDefinition["root"]["children"][number], keys: Set<string>) {
+  private collectTriggerKeys(node: FormDefinition["root"] | FormDefinition["root"]["children"][number], keys: Set<string>) {
     if (node.type === "control") {
-      if (node.controlType === "button") keys.add(node.key);
+      if (node.controlType === "button" || isListViewControlType(node.controlType)) keys.add(node.key);
       return;
     }
-    node.children.forEach((child) => this.collectButtonKeys(child, keys));
+    node.children.forEach((child) => this.collectTriggerKeys(child, keys));
   }
 
   async deleteForm(appCode: string, formKey: string) {
@@ -330,4 +330,8 @@ export class FormsService {
     if (result.count === 0) throw new NotFoundException("Form not found");
     return { deleted: result.count };
   }
+}
+
+function isListViewControlType(controlType: unknown): boolean {
+  return controlType === "listview" || controlType === "listView" || controlType === "list_view";
 }
