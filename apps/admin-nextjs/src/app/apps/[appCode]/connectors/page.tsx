@@ -19,6 +19,7 @@ import { qk, useConnectorMappings, useConnectors, useForms } from "../../../../l
 
 type ConnectorKind = DatabaseProvider | "rest_api";
 type WizardStep = "type" | "config";
+type ConnectorDetailTab = "configuration" | "schema" | "mappings";
 
 type HeaderRow = { id: string; key: string; value: string };
 
@@ -88,6 +89,7 @@ export default function ConnectorsPage() {
   const [pageStatus, setPageStatus] = useState("");
   const [actionResult, setActionResult] = useState<unknown>(null);
   const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(null);
+  const [detailTab, setDetailTab] = useState<ConnectorDetailTab>("configuration");
   const [schemaByConnector, setSchemaByConnector] = useState<Record<string, DatabaseSchemaColumn[]>>({});
   const [expandedTables, setExpandedTables] = useState<Record<string, boolean>>({});
 
@@ -128,6 +130,7 @@ export default function ConnectorsPage() {
     setCreateResult(null);
     setPageStatus("");
     setActionResult(null);
+    setDetailTab("configuration");
   }
 
   function patchForm(patch: Partial<ConnectorForm>) {
@@ -433,27 +436,20 @@ export default function ConnectorsPage() {
               </button>
             </div>
 
-            <div style={detailsActions}>
-              <button type="button" style={secondaryButton} onClick={() => void testEditedConnector(selectedConnector)}>
-                Test connection
-              </button>
-              <button type="button" style={primaryButton} onClick={() => void updateConnector(selectedConnector)} disabled={!form.name.trim()}>
-                Save changes
+            <div style={detailTabs} role="tablist" aria-label="Connector settings">
+              <button type="button" style={detailTab === "configuration" ? activeTabButton : tabButton} onClick={() => setDetailTab("configuration")}>
+                Configuration
               </button>
               {selectedConnector.type === "database" ? (
-                <button type="button" style={secondaryButton} onClick={() => void inspectSchema(selectedConnector)}>
-                  Inspect schema
-                </button>
+                <>
+                  <button type="button" style={detailTab === "schema" ? activeTabButton : tabButton} onClick={() => setDetailTab("schema")}>
+                    Schema
+                  </button>
+                  <button type="button" style={detailTab === "mappings" ? activeTabButton : tabButton} onClick={() => setDetailTab("mappings")}>
+                    Mappings
+                  </button>
+                </>
               ) : null}
-              <button type="button" style={dangerButton} onClick={async () => {
-                const ok = window.confirm(`Delete connector "${selectedConnector.name}"?`);
-                if (!ok) return;
-                await api.deleteConnector(appCode, selectedConnector.id);
-                setSelectedConnectorId(null);
-                await qc.invalidateQueries({ queryKey: qk.connectors(appCode) });
-              }}>
-                Delete
-              </button>
             </div>
 
             {createStatus ? <p style={statusText}>{createStatus}</p> : null}
@@ -461,9 +457,30 @@ export default function ConnectorsPage() {
             {pageStatus ? <p style={statusText}>{pageStatus}</p> : null}
 
             <div style={detailsBody}>
-              {renderConnectorConfigForm(true)}
+              {detailTab === "configuration" ? (
+                <>
+                  {renderConnectorConfigForm(true)}
+                  <div style={configurationFooter}>
+                    <button type="button" style={dangerButton} onClick={async () => {
+                      const ok = window.confirm(`Delete connector "${selectedConnector.name}"?`);
+                      if (!ok) return;
+                      await api.deleteConnector(appCode, selectedConnector.id);
+                      setSelectedConnectorId(null);
+                      await qc.invalidateQueries({ queryKey: qk.connectors(appCode) });
+                    }}>
+                      Delete
+                    </button>
+                    <button type="button" style={secondaryButton} onClick={() => void testEditedConnector(selectedConnector)}>
+                      Test connection
+                    </button>
+                    <button type="button" style={primaryButton} onClick={() => void updateConnector(selectedConnector)} disabled={!form.name.trim()}>
+                      Save changes
+                    </button>
+                  </div>
+                </>
+              ) : null}
 
-              {selectedConnector.type === "database" ? (
+              {selectedConnector.type === "database" && detailTab === "mappings" ? (
                 <DatabaseMappings
                   appCode={appCode}
                   connector={selectedConnector}
@@ -471,13 +488,26 @@ export default function ConnectorsPage() {
                 />
               ) : null}
 
-              {schemaByConnector[selectedConnector.id] ? (
-                <SchemaExplorer
-                  connectorId={selectedConnector.id}
-                  columns={schemaByConnector[selectedConnector.id]}
-                  expandedTables={expandedTables}
-                  setExpandedTables={setExpandedTables}
-                />
+              {selectedConnector.type === "database" && detailTab === "schema" ? (
+                <>
+                  <div style={schemaToolbar}>
+                    <button type="button" style={secondaryButton} onClick={() => void inspectSchema(selectedConnector)}>
+                      Inspect schema
+                    </button>
+                  </div>
+                  {schemaByConnector[selectedConnector.id] ? (
+                    <SchemaExplorer
+                      connectorId={selectedConnector.id}
+                      columns={schemaByConnector[selectedConnector.id]}
+                      expandedTables={expandedTables}
+                      setExpandedTables={setExpandedTables}
+                    />
+                  ) : (
+                    <section style={schemaPanel}>
+                      <p style={mutedText}>Inspect schema to load database tables and columns for this connector.</p>
+                    </section>
+                  )}
+                </>
               ) : null}
 
               {actionResult ? (
@@ -1191,7 +1221,11 @@ const emptyIcon: React.CSSProperties = { width: 42, height: 42, borderRadius: 8,
 const detailsWindow: React.CSSProperties = { border: "1px solid #d0d5dd", borderRadius: 8, background: "#fff", padding: 18, display: "grid", gap: 16, boxShadow: "0 1px 2px rgba(16, 24, 40, 0.04)" };
 const detailsHeader: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 14, alignItems: "flex-start", borderBottom: "1px solid #e4e7ec", paddingBottom: 14 };
 const detailsTitle: React.CSSProperties = { margin: 0, fontSize: 22 };
-const detailsActions: React.CSSProperties = { display: "flex", gap: 8, flexWrap: "wrap" };
+const detailTabs: React.CSSProperties = { display: "flex", gap: 4, borderBottom: "1px solid #e4e7ec" };
+const tabButton: React.CSSProperties = { border: 0, borderBottom: "3px solid transparent", background: "transparent", color: "#667085", padding: "10px 12px", fontWeight: 900, cursor: "pointer" };
+const activeTabButton: React.CSSProperties = { ...tabButton, borderBottomColor: "#175cd3", color: "#175cd3" };
+const configurationFooter: React.CSSProperties = { display: "flex", justifyContent: "flex-end", gap: 10, flexWrap: "wrap", borderTop: "1px solid #e4e7ec", paddingTop: 14 };
+const schemaToolbar: React.CSSProperties = { display: "flex", justifyContent: "flex-end" };
 const detailsBody: React.CSSProperties = { display: "grid", gap: 14 };
 const detailsSection: React.CSSProperties = { border: "1px solid #e4e7ec", borderRadius: 8, padding: 14, display: "grid", gap: 12, background: "#fff" };
 const statusText: React.CSSProperties = { margin: 0, color: "#475467" };
