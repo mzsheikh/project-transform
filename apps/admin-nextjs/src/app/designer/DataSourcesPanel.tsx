@@ -259,7 +259,7 @@ const modal: React.CSSProperties = {
   overflow: "hidden",
   boxShadow: "0 22px 70px rgba(16, 24, 40, 0.24)",
   display: "grid",
-  gridTemplateRows: "auto auto minmax(0, 1fr)",
+  gridTemplateRows: "auto auto auto minmax(0, 1fr)",
 };
 
 const header: React.CSSProperties = {
