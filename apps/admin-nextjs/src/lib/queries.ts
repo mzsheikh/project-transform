@@ -8,6 +8,8 @@ export const qk = {
   apps: () => ["apps"] as const,
   forms: (appCode: string) => ["apps", appCode, "forms"] as const,
   connectors: (appCode: string) => ["apps", appCode, "connectors"] as const,
+  connectorMappings: (appCode: string, connectorId: string) =>
+    ["apps", appCode, "connectors", connectorId, "mappings"] as const,
   submitActions: (appCode: string, formKey: string) =>
     ["apps", appCode, "forms", formKey, "submitActions"] as const,
   latestPublishedByKey: (appCode: string, formKey: string) =>
@@ -90,6 +92,14 @@ export function useConnectors(appCode: string) {
     queryKey: qk.connectors(appCode),
     queryFn: () => api.listConnectors(appCode),
     enabled: !!appCode,
+  });
+}
+
+export function useConnectorMappings(appCode: string, connectorId: string) {
+  return useQuery({
+    queryKey: qk.connectorMappings(appCode, connectorId),
+    queryFn: () => api.listConnectorMappings(appCode, connectorId),
+    enabled: !!appCode && !!connectorId,
   });
 }
 

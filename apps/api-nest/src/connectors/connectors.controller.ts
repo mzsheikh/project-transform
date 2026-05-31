@@ -4,12 +4,17 @@ import { RolesGuard } from "../auth/roles.guard";
 import { Roles } from "../auth/roles.decorator";
 import { ConnectorsService } from "./connectors.service";
 import { CreateConnectorDto, DatabaseDdlDto, UpdateConnectorDto } from "./dto/connector.dto";
+import { GenerateFormDatabaseMappingDto, SaveFormDatabaseMappingDto } from "./dto/form-database-mapping.dto";
+import { FormDatabaseMappingsService } from "./form-database-mappings.service";
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles("editor")
 @Controller()
 export class ConnectorsController {
-  constructor(private readonly connectors: ConnectorsService) {}
+  constructor(
+    private readonly connectors: ConnectorsService,
+    private readonly mappings: FormDatabaseMappingsService,
+  ) {}
 
   @Get("apps/:appCode/connectors")
   list(@Param("appCode") appCode: string) {
@@ -62,6 +67,38 @@ export class ConnectorsController {
   @Get("apps/:appCode/connectors/:id/schema")
   inspectSchema(@Param("appCode") appCode: string, @Param("id") id: string) {
     return this.connectors.inspectSchema(appCode.toUpperCase(), id);
+  }
+
+  @Get("apps/:appCode/connectors/:id/mappings")
+  listMappings(@Param("appCode") appCode: string, @Param("id") id: string) {
+    return this.mappings.list(appCode.toUpperCase(), id);
+  }
+
+  @Post("apps/:appCode/connectors/:id/mappings/generate")
+  generateMapping(
+    @Param("appCode") appCode: string,
+    @Param("id") id: string,
+    @Body() dto: GenerateFormDatabaseMappingDto,
+  ) {
+    return this.mappings.generatePreview(appCode.toUpperCase(), id, dto);
+  }
+
+  @Post("apps/:appCode/connectors/:id/mappings")
+  saveMapping(
+    @Param("appCode") appCode: string,
+    @Param("id") id: string,
+    @Body() dto: SaveFormDatabaseMappingDto,
+  ) {
+    return this.mappings.save(appCode.toUpperCase(), id, dto);
+  }
+
+  @Get("apps/:appCode/connectors/:id/mappings/:mappingId")
+  getMapping(
+    @Param("appCode") appCode: string,
+    @Param("id") id: string,
+    @Param("mappingId") mappingId: string,
+  ) {
+    return this.mappings.get(appCode.toUpperCase(), id, mappingId);
   }
 
   @Post("apps/:appCode/connectors/:id/ddl/preview")

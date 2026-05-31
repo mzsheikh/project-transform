@@ -2,6 +2,8 @@
 import type {
   ConnectorDto,
   ConnectorInput,
+  FormDatabaseMappingDto,
+  FormDatabaseMappingInput,
   FormSubmitActionDto,
   FormSubmitActionInput,
 } from "@transform/contracts/action-types";
@@ -148,6 +150,27 @@ export const api = {
 
   inspectConnectorSchema: (appCode: string, connectorId: string) =>
     req<{ columns: unknown[] }>(`/apps/${appCode}/connectors/${connectorId}/schema`),
+
+  listConnectorMappings: (appCode: string, connectorId: string) =>
+    req<FormDatabaseMappingDto[]>(`/apps/${appCode}/connectors/${connectorId}/mappings`),
+
+  generateConnectorMapping: (appCode: string, connectorId: string, body: { formKey: string }) =>
+    req<Omit<FormDatabaseMappingDto, "id" | "createdAt" | "updatedAt">>(
+      `/apps/${appCode}/connectors/${connectorId}/mappings/generate`,
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+      },
+    ),
+
+  saveConnectorMapping: (appCode: string, connectorId: string, body: FormDatabaseMappingInput) =>
+    req<FormDatabaseMappingDto>(`/apps/${appCode}/connectors/${connectorId}/mappings`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  getConnectorMapping: (appCode: string, connectorId: string, mappingId: string) =>
+    req<FormDatabaseMappingDto>(`/apps/${appCode}/connectors/${connectorId}/mappings/${mappingId}`),
 
   previewConnectorDdl: (appCode: string, connectorId: string, config: Record<string, unknown>) =>
     req<{ statements: string[] }>(`/apps/${appCode}/connectors/${connectorId}/ddl/preview`, {

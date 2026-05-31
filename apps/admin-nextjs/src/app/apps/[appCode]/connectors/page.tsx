@@ -4,9 +4,18 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import type { ConnectorDto, ConnectorInput, DatabaseProvider, RestAuthMode } from "@transform/contracts/action-types";
-import { api } from "../../../../lib/api";
-import { qk, useConnectors } from "../../../../lib/queries";
+import type {
+  ConnectorDto,
+  ConnectorInput,
+  DatabaseFieldType,
+  DatabaseMappingJson,
+  DatabaseMappingTable,
+  DatabaseProvider,
+  FormDatabaseMappingDto,
+  RestAuthMode,
+} from "@transform/contracts/action-types";
+import { api, type FormDto } from "../../../../lib/api";
+import { qk, useConnectorMappings, useConnectors, useForms } from "../../../../lib/queries";
 
 type ConnectorKind = DatabaseProvider | "rest_api";
 type WizardStep = "type" | "config";
@@ -60,26 +69,14 @@ const connectorTypes: Array<{
   { kind: "rest_api", title: "REST API", subtitle: "Call HTTP APIs with configured authentication.", accent: "#175cd3" },
 ];
 
-const ddlExample = JSON.stringify(
-  {
-    tables: [
-      {
-        tableName: "inspection_submissions",
-        source: "root",
-        includeMetadataColumns: true,
-        columns: [{ sourceKey: "customerName", targetField: "customer_name", type: "text" }],
-      },
-    ],
-  },
-  null,
-  2,
-);
+const databaseFieldTypes: DatabaseFieldType[] = ["text", "number", "boolean", "date", "datetime", "json"];
 
 export default function ConnectorsPage() {
   const params = useParams<{ appCode?: string }>();
   const appCodeParam = params?.appCode;
   const appCode = Array.isArray(appCodeParam) ? appCodeParam[0] : appCodeParam ?? "";
   const connectors = useConnectors(appCode);
+  const forms = useForms(appCode);
   const qc = useQueryClient();
 
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -91,7 +88,6 @@ export default function ConnectorsPage() {
   const [pageStatus, setPageStatus] = useState("");
   const [actionResult, setActionResult] = useState<unknown>(null);
   const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(null);
-  const [ddlText, setDdlText] = useState(ddlExample);
   const [schemaByConnector, setSchemaByConnector] = useState<Record<string, DatabaseSchemaColumn[]>>({});
   const [expandedTables, setExpandedTables] = useState<Record<string, boolean>>({});
 
@@ -468,12 +464,10 @@ export default function ConnectorsPage() {
               {renderConnectorConfigForm(true)}
 
               {selectedConnector.type === "database" ? (
-                <DatabaseTools
+                <DatabaseMappings
                   appCode={appCode}
                   connector={selectedConnector}
-                  ddlText={ddlText}
-                  setDdlText={setDdlText}
-                  runAction={runAction}
+                  forms={forms.data ?? []}
                 />
               ) : null}
 
@@ -600,38 +594,258 @@ function HeaderEditor({ rows, onChange }: { rows: HeaderRow[]; onChange: (rows: 
   );
 }
 
-function DatabaseTools({
+function DatabaseMappings({
   appCode,
   connector,
-  ddlText,
-  setDdlText,
-  runAction,
+  forms,
 }: {
   appCode: string;
   connector: ConnectorDto;
-  ddlText: string;
-  setDdlText: (value: string) => void;
-  runAction: (label: string, fn: () => Promise<unknown>) => Promise<void>;
+  forms: FormDto[];
+}) {
+  const qc = useQueryClient();
+  const mappings = useConnectorMappings(appCode, connector.id);
+  const draftForms = forms.filter((form) => form.status === "draft" && form.version === 0);
+  const [open, setOpen] = useState(false);
+  const [selectedFormKey, setSelectedFormKey] = useState("");
+  const [preview, setPreview] = useState<FormDatabaseMappingDto | null>(null);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [status, setStatus] = useState("");
+  const [error, setError] = useState("");
+  const effectiveFormKey = selectedFormKey || draftForms[0]?.formKey || "";
+
+  async function previewMappings() {
+    if (!effectiveFormKey) return;
+    setStatus("Generating mappings...");
+    setError("");
+    try {
+      const result = await api.generateConnectorMapping(appCode, connector.id, { formKey: effectiveFormKey });
+      setPreview({
+        ...result,
+        id: "",
+        createdAt: "",
+        updatedAt: "",
+      });
+      setSelectedFormKey(result.formKey);
+      setExpanded(Object.fromEntries(result.mappingJson.tables.map((table, index) => [`${index}:${table.tableName}`, index === 0])));
+      setStatus("Mapping preview generated.");
+    } catch (err) {
+      setStatus("");
+      setError(err instanceof Error ? err.message : "Failed to generate mappings.");
+    }
+  }
+
+  async function saveMappings() {
+    if (!preview) return;
+    setStatus("Saving mappings...");
+    setError("");
+    try {
+      const saved = await api.saveConnectorMapping(appCode, connector.id, {
+        formKey: preview.formKey,
+        name: preview.name,
+        mappingJson: preview.mappingJson,
+      });
+      setPreview(saved);
+      await qc.invalidateQueries({ queryKey: qk.connectorMappings(appCode, connector.id) });
+      setStatus("Mappings saved.");
+    } catch (err) {
+      setStatus("");
+      setError(err instanceof Error ? err.message : "Failed to save mappings.");
+    }
+  }
+
+  function updateTable(index: number, patch: Partial<DatabaseMappingTable>) {
+    if (!preview) return;
+    setPreview({
+      ...preview,
+      mappingJson: {
+        tables: preview.mappingJson.tables.map((table, tableIndex) =>
+          tableIndex === index ? { ...table, ...patch } : table,
+        ),
+      },
+    });
+  }
+
+  function updateColumn(tableIndex: number, columnIndex: number, patch: Partial<DatabaseMappingTable["columns"][number]>) {
+    if (!preview) return;
+    setPreview({
+      ...preview,
+      mappingJson: {
+        tables: preview.mappingJson.tables.map((table, currentTableIndex) =>
+          currentTableIndex === tableIndex
+            ? {
+                ...table,
+                columns: table.columns.map((column, currentColumnIndex) =>
+                  currentColumnIndex === columnIndex ? { ...column, ...patch } : column,
+                ),
+              }
+            : table,
+        ),
+      },
+    });
+  }
+
+  return (
+    <section style={mappingPanel}>
+      <div style={sectionHeader}>
+        <div>
+          <h3 style={sectionTitle}>Mappings</h3>
+          <p style={smallText}>Generate database table mappings from a draft form. Saved mappings can be selected by Submit to Database actions.</p>
+        </div>
+        <button type="button" style={primaryButton} onClick={() => setOpen((current) => !current)}>
+          Generate Mappings
+        </button>
+      </div>
+
+      {mappings.data && mappings.data.length > 0 ? (
+        <div style={savedMappingList}>
+          {mappings.data.map((mapping) => (
+            <button
+              key={mapping.id}
+              type="button"
+              style={savedMappingItem}
+              onClick={() => {
+                setOpen(true);
+                setSelectedFormKey(mapping.formKey);
+                setPreview(mapping);
+                setExpanded(Object.fromEntries(mapping.mappingJson.tables.map((table, index) => [`${index}:${table.tableName}`, index === 0])));
+              }}
+            >
+              <span style={savedMappingTitle}>{mapping.name}</span>
+              <span style={smallText}>{mapping.formKey} · {mapping.mappingJson.tables.length} table(s)</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {open ? (
+        <div style={mappingWorkflow}>
+          <div style={mappingControls}>
+            <label style={fieldLabel}>
+              Form
+              <select style={input} value={effectiveFormKey} onChange={(event) => {
+                setSelectedFormKey(event.target.value);
+                setPreview(null);
+                setStatus("");
+                setError("");
+              }}>
+                <option value="">Select form</option>
+                {draftForms.map((form) => (
+                  <option key={form.id} value={form.formKey}>{form.title} ({form.formKey})</option>
+                ))}
+              </select>
+            </label>
+            <button type="button" style={secondaryButton} onClick={() => void previewMappings()} disabled={!effectiveFormKey}>
+              Preview mappings
+            </button>
+            <button type="button" style={primaryButton} onClick={() => void saveMappings()} disabled={!preview}>
+              Save mappings
+            </button>
+          </div>
+
+          {preview ? (
+            <MappingTablesEditor
+              mapping={preview.mappingJson}
+              expanded={expanded}
+              setExpanded={setExpanded}
+              updateTable={updateTable}
+              updateColumn={updateColumn}
+            />
+          ) : null}
+          {error ? <p style={errorText}>{error}</p> : null}
+          {status ? <p style={statusText}>{status}</p> : null}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function MappingTablesEditor({
+  mapping,
+  expanded,
+  setExpanded,
+  updateTable,
+  updateColumn,
+}: {
+  mapping: DatabaseMappingJson;
+  expanded: Record<string, boolean>;
+  setExpanded: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
+  updateTable: (index: number, patch: Partial<DatabaseMappingTable>) => void;
+  updateColumn: (tableIndex: number, columnIndex: number, patch: Partial<DatabaseMappingTable["columns"][number]>) => void;
 }) {
   return (
-    <details style={toolPanel}>
-      <summary style={toolSummary}>DDL tools</summary>
-      <div style={tipBox}>
-        <strong>Preview DDL</strong> generates the SQL statements that would be created from this mapping and does not change the database. <strong>Apply DDL</strong> executes those statements on the selected connector, so use it after reviewing the preview.
-      </div>
-      <textarea value={ddlText} onChange={(event) => setDdlText(event.target.value)} style={ddlTextarea} />
-      <div style={rowActions}>
-        <button type="button" style={secondaryButton} onClick={() => void runAction("DDL preview", () => api.previewConnectorDdl(appCode, connector.id, parseJsonObject(ddlText, "DDL config")))}>
-          Preview DDL
-        </button>
-        <button type="button" style={primaryButton} onClick={() => {
-          const ok = window.confirm("Apply this DDL to the connected database?");
-          if (ok) void runAction("DDL apply", () => api.applyConnectorDdl(appCode, connector.id, parseJsonObject(ddlText, "DDL config")));
-        }}>
-          Apply DDL
-        </button>
-      </div>
-    </details>
+    <div style={mappingTables}>
+      {mapping.tables.map((table, tableIndex) => {
+        const key = `${tableIndex}:${table.tableName}`;
+        const isOpen = expanded[key] === true;
+        const enabledCount = table.columns.filter((column) => column.enabled !== false).length;
+        return (
+          <div key={key} style={tableBlock}>
+            <button
+              type="button"
+              style={tableHeader}
+              onClick={() => setExpanded((current) => ({ ...current, [key]: !isOpen }))}
+            >
+              <span>{isOpen ? <ChevronDownIcon /> : <ChevronRightIcon />}</span>
+              <span style={tableName}>{table.tableName}</span>
+              <span style={tableCount}>{enabledCount} selected</span>
+            </button>
+            {isOpen ? (
+              <div style={mappingTableBody}>
+                <label style={fieldLabel}>
+                  Table name
+                  <input style={input} value={table.tableName} onChange={(event) => updateTable(tableIndex, { tableName: event.target.value })} />
+                </label>
+                <table style={columnsTable}>
+                  <thead>
+                    <tr>
+                      <th style={th}>Create</th>
+                      <th style={th}>Source</th>
+                      <th style={th}>Column name</th>
+                      <th style={th}>Type</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {table.columns.map((column, columnIndex) => (
+                      <tr key={`${column.sourceKey}:${columnIndex}`}>
+                        <td style={td}>
+                          <input
+                            type="checkbox"
+                            checked={column.enabled !== false}
+                            onChange={(event) => updateColumn(tableIndex, columnIndex, { enabled: event.target.checked })}
+                            aria-label={`Create ${column.sourceKey}`}
+                          />
+                        </td>
+                        <td style={td}>
+                          <strong>{column.sourceKey}</strong>
+                          {column.label ? <div style={smallText}>{column.label}</div> : null}
+                        </td>
+                        <td style={td}>
+                          <input
+                            style={compactInput}
+                            value={column.targetField}
+                            onChange={(event) => updateColumn(tableIndex, columnIndex, { targetField: event.target.value })}
+                          />
+                        </td>
+                        <td style={td}>
+                          <select
+                            style={compactInput}
+                            value={column.type ?? "text"}
+                            onChange={(event) => updateColumn(tableIndex, columnIndex, { type: event.target.value as DatabaseFieldType })}
+                          >
+                            {databaseFieldTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+                          </select>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -808,14 +1022,6 @@ function headersToRecord(rows: HeaderRow[]) {
   return Object.keys(headers).length > 0 ? headers : undefined;
 }
 
-function parseJsonObject(value: string, label: string): Record<string, unknown> {
-  const parsed = JSON.parse(value) as unknown;
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error(`${label} must be a JSON object`);
-  }
-  return parsed as Record<string, unknown>;
-}
-
 function numberOrUndefined(value: string): number | undefined {
   if (!value.trim()) return undefined;
   const number = Number(value);
@@ -961,10 +1167,15 @@ const connectorName: React.CSSProperties = { margin: 0, fontSize: 18 };
 const connectorDetail: React.CSSProperties = { margin: "4px 0 0", color: "#667085", fontSize: 13 };
 const typeBadge: React.CSSProperties = { border: "1px solid #d0d5dd", borderRadius: 999, padding: "6px 10px", background: "#fff", color: "#344054", fontSize: 12, fontWeight: 900, whiteSpace: "nowrap" };
 const rowActions: React.CSSProperties = { display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" };
-const toolPanel: React.CSSProperties = { border: "1px solid #e4e7ec", borderRadius: 8, padding: 12, background: "#fff" };
-const toolSummary: React.CSSProperties = { cursor: "pointer", fontWeight: 900, color: "#344054" };
-const tipBox: React.CSSProperties = { marginTop: 12, border: "1px solid #fedf89", borderRadius: 8, background: "#fffcf5", padding: 12, color: "#7a2e0e", fontSize: 13, lineHeight: 1.45 };
-const ddlTextarea: React.CSSProperties = { ...input, minHeight: 170, marginTop: 12, width: "100%", boxSizing: "border-box", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 12 };
+const mappingPanel: React.CSSProperties = { border: "1px solid #e4e7ec", borderRadius: 8, padding: 14, display: "grid", gap: 12, background: "#fff" };
+const mappingWorkflow: React.CSSProperties = { borderTop: "1px solid #e4e7ec", paddingTop: 12, display: "grid", gap: 12 };
+const mappingControls: React.CSSProperties = { display: "grid", gridTemplateColumns: "minmax(240px, 1fr) auto auto", gap: 10, alignItems: "end" };
+const mappingTables: React.CSSProperties = { display: "grid", gap: 8 };
+const mappingTableBody: React.CSSProperties = { display: "grid", gap: 10, padding: 12 };
+const savedMappingList: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 8 };
+const savedMappingItem: React.CSSProperties = { border: "1px solid #e4e7ec", borderRadius: 8, background: "#f8fafc", padding: 10, display: "grid", gap: 4, textAlign: "left", cursor: "pointer" };
+const savedMappingTitle: React.CSSProperties = { fontWeight: 900, color: "#344054" };
+const compactInput: React.CSSProperties = { ...input, width: "100%", boxSizing: "border-box", padding: "7px 9px" };
 const schemaPanel: React.CSSProperties = { border: "1px solid #e4e7ec", borderRadius: 8, background: "#fff", padding: 12, display: "grid", gap: 10 };
 const schemaTitle: React.CSSProperties = { margin: 0, fontSize: 15 };
 const schemaList: React.CSSProperties = { display: "grid", gap: 8 };

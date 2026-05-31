@@ -1,12 +1,16 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { FormDatabaseMappingsService } from "../connectors/form-database-mappings.service";
 import { CreateSubmitActionDto, UpdateSubmitActionDto } from "./dto/submit-action.dto";
 import type { FormDefinition, Node } from "../../../../packages/contracts/src/form-types";
 
 @Injectable()
 export class SubmitActionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly databaseMappings: FormDatabaseMappingsService,
+  ) {}
 
   async listDraft(appCode: string, formKey: string) {
     const draft = await this.findDraft(appCode, formKey);
@@ -20,6 +24,7 @@ export class SubmitActionsService {
   async create(appCode: string, formKey: string, dto: CreateSubmitActionDto) {
     const draft = await this.findDraft(appCode, formKey);
     const connectorId = await this.resolveConnectorId(appCode, dto.type, dto.connectorId, dto.configJson);
+    const configJson = await this.prepareConfigJson(appCode, draft.id, dto.type, connectorId, dto.configJson);
     const triggerKey = this.resolveTriggerKey(draft.schemaJson, dto.triggerKey);
     const buttonActionId = this.resolveButtonActionId(draft.schemaJson, triggerKey, dto.buttonActionId, dto.type);
     const action = await this.prisma.formSubmitAction.create({
@@ -35,7 +40,7 @@ export class SubmitActionsService {
         triggerKey,
         buttonActionId,
         connectorId,
-        configJson: dto.configJson as Prisma.InputJsonObject,
+        configJson: configJson as Prisma.InputJsonObject,
       },
     });
     return this.toPublic(action);
@@ -66,6 +71,7 @@ export class SubmitActionsService {
       dto.connectorId === undefined ? existing.connectorId : dto.connectorId,
       nextConfig,
     );
+    const configJson = await this.prepareConfigJson(appCode, draft.id, nextType, connectorId, nextConfig);
 
     const action = await this.prisma.formSubmitAction.update({
       where: { id: existing.id },
@@ -77,7 +83,7 @@ export class SubmitActionsService {
         triggerKey,
         buttonActionId,
         connectorId,
-        configJson: dto.configJson ? (dto.configJson as Prisma.InputJsonObject) : undefined,
+        configJson: configJson as Prisma.InputJsonObject,
       },
     });
     return this.toPublic(action);
@@ -123,6 +129,17 @@ export class SubmitActionsService {
       throw new BadRequestException("REST action requires a REST API connector");
     }
     return resolved;
+  }
+
+  private async prepareConfigJson(
+    appCode: string,
+    formId: string,
+    type: "email_pdf" | "database" | "rest_api",
+    connectorId: string | null,
+    configJson: Record<string, unknown>,
+  ) {
+    if (type !== "database") return configJson;
+    return this.databaseMappings.applyMappingToDatabaseConfig(appCode, formId, connectorId, configJson);
   }
 
   private resolveTriggerKey(schemaJson: Prisma.JsonValue, triggerKey: string | null | undefined) {

@@ -3,9 +3,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { ButtonAction } from "@transform/contracts/form-types";
-import type { ConnectorDto, FormSubmitActionDto, SubmitActionConfig, SubmitActionType } from "@transform/contracts/action-types";
+import type {
+  ConnectorDto,
+  DatabaseMappingJson,
+  FormDatabaseMappingDto,
+  FormSubmitActionDto,
+  SubmitActionConfig,
+  SubmitActionType,
+} from "@transform/contracts/action-types";
 import { api } from "../../lib/api";
-import { qk, useConnectors, useSubmitActions } from "../../lib/queries";
+import { qk, useConnectorMappings, useConnectors, useSubmitActions } from "../../lib/queries";
 
 const emailDefault = JSON.stringify(
   {
@@ -80,9 +87,11 @@ export function ButtonActionConfigDialog({
   const [name, setName] = useState(defaultName(submitType));
   const [enabled, setEnabled] = useState(action.enabled !== false);
   const [connectorId, setConnectorId] = useState("");
+  const [mappingId, setMappingId] = useState("");
   const [configText, setConfigText] = useState(defaultConfigText(submitType, ""));
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
+  const connectorMappings = useConnectorMappings(appCode, submitType === "database" ? connectorId : "");
 
   useEffect(() => {
     const firstConnector = firstConnectorId(connectors.data ?? [], submitType);
@@ -90,12 +99,14 @@ export function ButtonActionConfigDialog({
       setName(existing.name);
       setEnabled(existing.enabled);
       setConnectorId(existing.connectorId ?? "");
+      setMappingId(readMappingId(existing.configJson));
       setConfigText(JSON.stringify(existing.configJson, null, 2));
       return;
     }
     setName(defaultName(submitType));
     setEnabled(action.enabled !== false);
     setConnectorId(firstConnector);
+    setMappingId("");
     setConfigText(defaultConfigText(submitType, firstConnector));
   }, [action.enabled, existing, connectors.data, submitType]);
 
@@ -108,7 +119,26 @@ export function ButtonActionConfigDialog({
 
   function changeConnector(nextId: string) {
     setConnectorId(nextId);
+    setMappingId("");
     setConfigText((current) => withConnector(current, nextId));
+  }
+
+  function changeMapping(nextId: string) {
+    setMappingId(nextId);
+    const mapping = (connectorMappings.data ?? []).find((item) => item.id === nextId);
+    if (!mapping) {
+      setConfigText((current) => {
+        try {
+          const parsed = parseJsonObject(current);
+          delete parsed.mappingId;
+          return JSON.stringify(parsed, null, 2);
+        } catch {
+          return current;
+        }
+      });
+      return;
+    }
+    setConfigText(JSON.stringify(databaseConfigFromMapping(mapping, connectorId), null, 2));
   }
 
   async function refresh() {
@@ -205,6 +235,20 @@ export function ButtonActionConfigDialog({
             </label>
           ) : null}
 
+          {submitType === "database" ? (
+            <label style={label}>
+              Mapping
+              <select value={mappingId} onChange={(event) => changeMapping(event.target.value)} style={input} disabled={!connectorId}>
+                <option value="">Manual JSON mapping</option>
+                {(connectorMappings.data ?? [])
+                  .filter((mapping) => mapping.formKey === formKey)
+                  .map((mapping) => (
+                    <option key={mapping.id} value={mapping.id}>{mapping.name}</option>
+                  ))}
+              </select>
+            </label>
+          ) : null}
+
           <label style={label}>
             Config JSON
             <textarea value={configText} onChange={(event) => setConfigText(event.target.value)} style={textarea} />
@@ -281,6 +325,39 @@ function readConnectorId(config: SubmitActionConfig) {
   return typeof record.connectorId === "string"
     ? record.connectorId
     : null;
+}
+
+function readMappingId(config: SubmitActionConfig) {
+  const record = config as unknown as Record<string, unknown>;
+  return typeof record.mappingId === "string"
+    ? record.mappingId
+    : "";
+}
+
+function databaseConfigFromMapping(mapping: FormDatabaseMappingDto, connectorId: string) {
+  return {
+    connectorId,
+    mappingId: mapping.id,
+    autoCreateTables: true,
+    tables: tableMappings(mapping.mappingJson),
+  };
+}
+
+function tableMappings(mapping: DatabaseMappingJson) {
+  return mapping.tables.map((table) => ({
+    tableName: table.tableName,
+    source: table.source,
+    repeaterKey: table.repeaterKey,
+    includeMetadataColumns: table.includeMetadataColumns !== false,
+    columns: table.columns
+      .filter((column) => column.enabled !== false)
+      .map((column) => ({
+        sourceKey: column.sourceKey,
+        targetField: column.targetField,
+        type: column.type,
+        required: column.required,
+      })),
+  }));
 }
 
 function previewConfig(value: string) {

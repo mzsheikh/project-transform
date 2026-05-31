@@ -77,6 +77,7 @@ model App {
   connectors  Connector[]
   submitActions FormSubmitAction[]
   actionRuns SubmissionActionRun[]
+  databaseMappings FormDatabaseMapping[]
 
   @@map("apps")
 }
@@ -169,6 +170,7 @@ model Form {
   app App @relation(fields: [appCode], references: [appCode], onDelete: Cascade)
 
   submitActions FormSubmitAction[]
+  databaseMappings FormDatabaseMapping[]
 
   @@unique([appCode, formKey, version])
   @@index([appCode, formKey, status])
@@ -214,10 +216,34 @@ model Connector {
 
   submitActions FormSubmitAction[]
   schemaSnapshots ConnectorSchemaSnapshot[]
+  databaseMappings FormDatabaseMapping[]
 
   @@unique([appCode, name])
   @@index([appCode, type])
   @@map("connectors")
+}
+
+model FormDatabaseMapping {
+  id          String   @id @default(uuid()) @db.Uuid
+  appCode     String   @map("app_code")
+  connectorId String   @map("connector_id") @db.Uuid
+  formId      String   @map("form_id") @db.Uuid
+  formKey     String   @map("form_key")
+  formVersion Int      @map("form_version")
+  name        String
+  mappingJson Json     @map("mapping_json")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  app       App       @relation(fields: [appCode], references: [appCode], onDelete: Cascade)
+  connector Connector @relation(fields: [connectorId], references: [id], onDelete: Cascade)
+  form      Form      @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  @@unique([connectorId, formId])
+  @@index([appCode, connectorId])
+  @@index([appCode, formKey, formVersion])
+  @@map("form_database_mappings")
 }
 
 model FormSubmitAction {

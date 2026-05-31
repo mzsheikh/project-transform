@@ -61,8 +61,50 @@ export interface DatabaseTableMapping {
 
 export interface DatabaseActionConfig {
   connectorId: string;
+  mappingId?: string;
   autoCreateTables?: boolean;
   tables: DatabaseTableMapping[];
+}
+
+export interface DatabaseMappingColumn {
+  sourceKey: string;
+  label?: string;
+  controlType?: string;
+  targetField: string;
+  type?: DatabaseFieldType;
+  required?: boolean;
+  enabled?: boolean;
+}
+
+export interface DatabaseMappingTable {
+  tableName: string;
+  source: "root" | "repeater";
+  repeaterKey?: string;
+  includeMetadataColumns?: boolean;
+  columns: DatabaseMappingColumn[];
+}
+
+export interface DatabaseMappingJson {
+  tables: DatabaseMappingTable[];
+}
+
+export interface FormDatabaseMappingDto {
+  id: string;
+  appCode: string;
+  connectorId: string;
+  formId: string;
+  formKey: string;
+  formVersion: number;
+  name: string;
+  mappingJson: DatabaseMappingJson;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FormDatabaseMappingInput {
+  formKey: string;
+  name?: string;
+  mappingJson: DatabaseMappingJson;
 }
 
 export interface RestFieldMapping {

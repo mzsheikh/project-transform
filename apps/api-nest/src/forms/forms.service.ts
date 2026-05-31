@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { ConnectorsService } from "../connectors/connectors.service";
+import { FormDatabaseMappingsService } from "../connectors/form-database-mappings.service";
 import { CreateDraftFormDto } from "./dto/create-draft-form.dto";
 import { UpdateDraftFormDto } from "./dto/update-draft-form.dto";
 import { Prisma } from "@prisma/client";
@@ -21,6 +22,7 @@ export class FormsService {
   constructor(
     private prisma: PrismaService,
     private connectors: ConnectorsService,
+    private databaseMappings: FormDatabaseMappingsService,
   ) {}
 
   async list(appCode: string) {
@@ -129,6 +131,11 @@ export class FormsService {
           createdById: createdById ?? draft.createdById ?? null,
         },
       });
+      const mappingIdMap = await this.databaseMappings.copyDraftMappingsToPublishedForm(tx, appCode, draft.id, {
+        id: published.id,
+        formKey,
+        version: published.version,
+      });
 
       if (orderedDraftActions.length > 0) {
         await tx.formSubmitAction.createMany({
@@ -147,7 +154,9 @@ export class FormsService {
             configJson:
               action.configJson === null
                 ? Prisma.JsonNull
-                : (action.configJson as Prisma.InputJsonValue),
+                : action.type === "database"
+                  ? this.databaseMappings.rewritePublishedDatabaseActionConfig(action, mappingIdMap)
+                  : (action.configJson as Prisma.InputJsonValue),
           })),
         });
       }
