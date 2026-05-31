@@ -4,6 +4,7 @@ import type {
   ConnectorInput,
   FormDatabaseMappingDto,
   FormDatabaseMappingInput,
+  FormDatabaseMappingSaveResult,
   FormSubmitActionDto,
   FormSubmitActionInput,
 } from "@transform/contracts/action-types";
@@ -164,7 +165,7 @@ export const api = {
     ),
 
   saveConnectorMapping: (appCode: string, connectorId: string, body: FormDatabaseMappingInput) =>
-    req<FormDatabaseMappingDto>(`/apps/${appCode}/connectors/${connectorId}/mappings`, {
+    req<FormDatabaseMappingSaveResult>(`/apps/${appCode}/connectors/${connectorId}/mappings`, {
       method: "POST",
       body: JSON.stringify(body),
     }),

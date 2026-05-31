@@ -10,6 +10,7 @@ import {
   buildInsertStatements,
   createTableStatement,
   SqlDialect,
+  syncTablePlan,
 } from "./database-utils";
 
 function loadOptionalModule(name: string): any {
@@ -46,6 +47,24 @@ abstract class SqlDatabaseConnector extends BaseDatabaseConnector {
       await this.execute(statement, []);
     }
     return ddl;
+  }
+
+  async syncTables(tables: DatabaseTableMapping[], options?: { allowDestructive?: boolean }) {
+    const existing = await this.inspectSchema();
+    const plan = syncTablePlan(tables, existing, this.dialect);
+    const statements = [
+      ...plan.safeStatements,
+      ...(options?.allowDestructive ? plan.destructiveStatements : []),
+    ];
+    for (const statement of statements) {
+      await this.execute(statement, []);
+    }
+    return {
+      statements: [...plan.safeStatements, ...plan.destructiveStatements],
+      warnings: plan.warnings,
+      executedStatements: statements.length,
+      requiresConfirmation: plan.destructiveStatements.length > 0 && !options?.allowDestructive,
+    };
   }
 
   async insertSubmission(config: DatabaseActionConfig, context: SubmissionInsertContext): Promise<Record<string, unknown>> {

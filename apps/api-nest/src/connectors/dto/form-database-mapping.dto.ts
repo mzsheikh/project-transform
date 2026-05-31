@@ -1,4 +1,4 @@
-import { IsObject, IsOptional, IsString } from "class-validator";
+import { IsBoolean, IsObject, IsOptional, IsString } from "class-validator";
 
 export class GenerateFormDatabaseMappingDto {
   @IsString()
@@ -15,4 +15,8 @@ export class SaveFormDatabaseMappingDto {
 
   @IsObject()
   mappingJson!: Record<string, unknown>;
+
+  @IsBoolean()
+  @IsOptional()
+  allowDestructiveSync?: boolean;
 }

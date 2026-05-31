@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { ConnectorFactory } from "./runtime/connector.factory";
+import { ConnectorsService } from "./connectors.service";
 import {
   DatabaseActionConfig,
   DatabaseFieldType,
@@ -15,7 +17,11 @@ const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 @Injectable()
 export class FormDatabaseMappingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly connectors: ConnectorsService,
+    private readonly factory: ConnectorFactory,
+  ) {}
 
   async list(appCode: string, connectorId: string) {
     await this.assertDatabaseConnector(appCode, connectorId);
@@ -51,10 +57,11 @@ export class FormDatabaseMappingsService {
   }
 
   async save(appCode: string, connectorId: string, dto: SaveFormDatabaseMappingDto) {
-    await this.assertDatabaseConnector(appCode, connectorId);
+    const connector = await this.assertDatabaseConnector(appCode, connectorId);
     const form = await this.findLatestDraft(appCode, dto.formKey);
     const mappingJson = this.readMapping(dto.mappingJson);
     this.validateMapping(mappingJson);
+    const tableMappings = this.toTableMappings(mappingJson);
 
     const row = await this.prisma.formDatabaseMapping.upsert({
       where: { connectorId_formId: { connectorId, formId: form.id } },
@@ -72,7 +79,14 @@ export class FormDatabaseMappingsService {
         mappingJson: mappingJson as unknown as Prisma.InputJsonObject,
       },
     });
-    return this.toPublic(row);
+    const runtime = await this.connectors.runtimeConfig(appCode, connector.id);
+    const sync = await this.factory.database(runtime).syncTables(tableMappings, {
+      allowDestructive: dto.allowDestructiveSync === true,
+    });
+    return {
+      mapping: this.toPublic(row),
+      sync,
+    };
   }
 
   async applyMappingToDatabaseConfig(

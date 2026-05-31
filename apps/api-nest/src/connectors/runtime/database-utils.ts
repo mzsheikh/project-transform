@@ -1,6 +1,7 @@
 import {
   DatabaseFieldMapping,
   DatabaseFieldType,
+  DatabaseSchemaColumn,
   DatabaseTableMapping,
   SubmissionInsertContext,
 } from "./base-connectors";
@@ -85,6 +86,126 @@ export function createTableStatement(table: DatabaseTableMapping, dialect: SqlDi
     return `IF OBJECT_ID(N'${table.tableName.replace(/'/g, "''")}', N'U') IS NULL CREATE TABLE ${tableName} (${columns.join(", ")});`;
   }
   return `CREATE TABLE IF NOT EXISTS ${tableName} (${columns.join(", ")});`;
+}
+
+export type SyncPlan = {
+  safeStatements: string[];
+  destructiveStatements: string[];
+  warnings: string[];
+};
+
+export function syncTablePlan(
+  tables: DatabaseTableMapping[],
+  existingColumns: DatabaseSchemaColumn[],
+  dialect: SqlDialect,
+): SyncPlan {
+  const safeStatements: string[] = [];
+  const destructiveStatements: string[] = [];
+  const warnings: string[] = [];
+  const existingByTable = new Map<string, DatabaseSchemaColumn[]>();
+  for (const column of existingColumns) {
+    const key = normalizeName(column.table);
+    existingByTable.set(key, [...(existingByTable.get(key) ?? []), column]);
+  }
+
+  for (const table of tables) {
+    assertIdentifier(table.tableName, "Table name");
+    const existing = existingByTable.get(normalizeName(table.tableName));
+    if (!existing) {
+      safeStatements.push(createTableStatement(table, dialect));
+      continue;
+    }
+
+    const desiredColumns = desiredColumnDefinitions(table, dialect);
+    const desiredByName = new Map(desiredColumns.map((column) => [normalizeName(column.name), column]));
+    const existingByName = new Map(existing.map((column) => [normalizeName(column.column), column]));
+
+    for (const desired of desiredColumns) {
+      if (!existingByName.has(normalizeName(desired.name))) {
+        safeStatements.push(addColumnStatement(table.tableName, desired.name, desired.sqlType, dialect));
+        continue;
+      }
+
+      const existingColumn = existingByName.get(normalizeName(desired.name));
+      if (existingColumn && !typesCompatible(existingColumn.dataType, desired.type, dialect)) {
+        warnings.push(`Column "${table.tableName}.${desired.name}" type will change from ${existingColumn.dataType} to ${desired.sqlType}. Existing values may be converted or lost.`);
+        destructiveStatements.push(alterColumnTypeStatement(table.tableName, desired.name, desired.sqlType, dialect));
+      }
+    }
+
+    for (const column of existing) {
+      if (!desiredByName.has(normalizeName(column.column))) {
+        warnings.push(`Column "${table.tableName}.${column.column}" is not in the saved mapping and will be dropped. Existing data in this column will be lost.`);
+        destructiveStatements.push(dropColumnStatement(table.tableName, column.column, dialect));
+      }
+    }
+  }
+
+  return { safeStatements, destructiveStatements, warnings };
+}
+
+function desiredColumnDefinitions(table: DatabaseTableMapping, dialect: SqlDialect) {
+  const result: Array<{ name: string; type?: DatabaseFieldType; sqlType: string }> = [];
+  if (table.includeMetadataColumns !== false) {
+    result.push(
+      { name: "transform_submission_id", type: "text", sqlType: dialect === "sqlserver" ? "NVARCHAR(128)" : "VARCHAR(128)" },
+      { name: "transform_form_key", type: "text", sqlType: dialect === "sqlserver" ? "NVARCHAR(128)" : "VARCHAR(128)" },
+      { name: "transform_form_version", type: "number", sqlType: "INTEGER" },
+      { name: "transform_created_at", type: "datetime", sqlType: dialect === "postgresql" ? "TIMESTAMPTZ" : "DATETIME" },
+    );
+    if (table.source === "repeater") {
+      result.push(
+        { name: "transform_repeater_key", type: "text", sqlType: dialect === "sqlserver" ? "NVARCHAR(128)" : "VARCHAR(128)" },
+        { name: "transform_repeater_index", type: "number", sqlType: "INTEGER" },
+      );
+    }
+  }
+  for (const mapping of table.columns) {
+    assertIdentifier(mapping.targetField, "Column name");
+    result.push({ name: mapping.targetField, type: mapping.type, sqlType: columnType(mapping.type, dialect) });
+  }
+  return result;
+}
+
+function addColumnStatement(tableName: string, columnName: string, sqlType: string, dialect: SqlDialect) {
+  return `ALTER TABLE ${quoteIdentifier(tableName, dialect)} ADD ${quoteIdentifier(columnName, dialect)} ${sqlType};`;
+}
+
+function dropColumnStatement(tableName: string, columnName: string, dialect: SqlDialect) {
+  return `ALTER TABLE ${quoteIdentifier(tableName, dialect)} DROP COLUMN ${quoteIdentifier(columnName, dialect)};`;
+}
+
+function alterColumnTypeStatement(tableName: string, columnName: string, sqlType: string, dialect: SqlDialect) {
+  if (dialect === "postgresql") {
+    return `ALTER TABLE ${quoteIdentifier(tableName, dialect)} ALTER COLUMN ${quoteIdentifier(columnName, dialect)} TYPE ${sqlType} USING ${quoteIdentifier(columnName, dialect)}::${sqlType};`;
+  }
+  if (dialect === "mysql") {
+    return `ALTER TABLE ${quoteIdentifier(tableName, dialect)} MODIFY COLUMN ${quoteIdentifier(columnName, dialect)} ${sqlType};`;
+  }
+  return `ALTER TABLE ${quoteIdentifier(tableName, dialect)} ALTER COLUMN ${quoteIdentifier(columnName, dialect)} ${sqlType};`;
+}
+
+function typesCompatible(existingType: string, expected: DatabaseFieldType | undefined, dialect: SqlDialect) {
+  const existing = normalizeType(existingType);
+  const family = expected ?? "text";
+  if (family === "text") return ["text", "varchar", "char", "nvarchar", "nchar", "character", "character varying"].some((type) => existing.includes(type));
+  if (family === "number") return ["int", "numeric", "decimal", "double", "float", "real", "bigint", "smallint"].some((type) => existing.includes(type));
+  if (family === "boolean") return ["boolean", "bool", "bit", "tinyint"].some((type) => existing.includes(type));
+  if (family === "date") return existing === "date";
+  if (family === "datetime") return ["timestamp", "datetime", "timestamptz", "datetime2"].some((type) => existing.includes(type));
+  if (family === "json") {
+    if (dialect === "sqlserver") return existing.includes("nvarchar");
+    return existing.includes("json") || existing.includes("jsonb");
+  }
+  return false;
+}
+
+function normalizeName(value: string) {
+  return value.toLowerCase();
+}
+
+function normalizeType(value: string) {
+  return value.toLowerCase().replace(/\(.+\)/g, "").trim();
 }
 
 export function buildInsertStatements(

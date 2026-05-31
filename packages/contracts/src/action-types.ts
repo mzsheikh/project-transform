@@ -105,6 +105,19 @@ export interface FormDatabaseMappingInput {
   formKey: string;
   name?: string;
   mappingJson: DatabaseMappingJson;
+  allowDestructiveSync?: boolean;
+}
+
+export interface DatabaseMappingSyncResult {
+  statements: string[];
+  warnings: string[];
+  executedStatements: number;
+  requiresConfirmation: boolean;
+}
+
+export interface FormDatabaseMappingSaveResult {
+  mapping: FormDatabaseMappingDto;
+  sync: DatabaseMappingSyncResult;
 }
 
 export interface RestFieldMapping {

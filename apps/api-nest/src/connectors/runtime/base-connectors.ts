@@ -40,6 +40,13 @@ export type DatabaseSchemaColumn = {
   nullable: boolean;
 };
 
+export type DatabaseSyncResult = {
+  statements: string[];
+  warnings: string[];
+  executedStatements: number;
+  requiresConfirmation: boolean;
+};
+
 export type SubmissionInsertContext = {
   submissionId: string;
   appCode: string;
@@ -59,6 +66,7 @@ export abstract class BaseDatabaseConnector extends BaseConnector {
   abstract inspectSchema(): Promise<DatabaseSchemaColumn[]>;
   abstract previewDdl(tables: DatabaseTableMapping[]): string[];
   abstract ensureTables(tables: DatabaseTableMapping[]): Promise<string[]>;
+  abstract syncTables(tables: DatabaseTableMapping[], options?: { allowDestructive?: boolean }): Promise<DatabaseSyncResult>;
   abstract queryRows(sql: string, values: unknown[], limit: number): Promise<Record<string, unknown>[]>;
   abstract insertSubmission(config: DatabaseActionConfig, context: SubmissionInsertContext): Promise<Record<string, unknown>>;
 }

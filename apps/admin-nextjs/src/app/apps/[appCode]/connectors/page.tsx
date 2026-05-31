@@ -12,6 +12,7 @@ import type {
   DatabaseMappingTable,
   DatabaseProvider,
   FormDatabaseMappingDto,
+  FormDatabaseMappingSaveResult,
   RestAuthMode,
 } from "@transform/contracts/action-types";
 import { api, type FormDto } from "../../../../lib/api";
@@ -642,6 +643,7 @@ function DatabaseMappings({
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
+  const [pendingDestructiveSync, setPendingDestructiveSync] = useState<FormDatabaseMappingSaveResult | null>(null);
   const effectiveFormKey = selectedFormKey || draftForms[0]?.formKey || "";
 
   async function previewMappings() {
@@ -669,18 +671,47 @@ function DatabaseMappings({
     if (!preview) return;
     setStatus("Saving mappings...");
     setError("");
+    setPendingDestructiveSync(null);
     try {
-      const saved = await api.saveConnectorMapping(appCode, connector.id, {
+      const result = await api.saveConnectorMapping(appCode, connector.id, {
         formKey: preview.formKey,
         name: preview.name,
         mappingJson: preview.mappingJson,
       });
-      setPreview(saved);
+      setPreview(result.mapping);
       await qc.invalidateQueries({ queryKey: qk.connectorMappings(appCode, connector.id) });
-      setStatus("Mappings saved.");
+      if (result.sync.requiresConfirmation) {
+        setPendingDestructiveSync(result);
+        setStatus(`Mappings saved. ${result.sync.executedStatements} safe change(s) synced. Review warning before applying destructive changes.`);
+      } else {
+        setStatus(`Mappings saved and synced. ${result.sync.executedStatements} database change(s) applied.`);
+      }
     } catch (err) {
       setStatus("");
       setError(err instanceof Error ? err.message : "Failed to save mappings.");
+    }
+  }
+
+  async function confirmDestructiveSync() {
+    if (!preview || !pendingDestructiveSync) return;
+    const ok = window.confirm("This sync may drop columns or convert column types. Existing data may be lost. Continue?");
+    if (!ok) return;
+    setStatus("Applying destructive mapping changes...");
+    setError("");
+    try {
+      const result = await api.saveConnectorMapping(appCode, connector.id, {
+        formKey: preview.formKey,
+        name: preview.name,
+        mappingJson: preview.mappingJson,
+        allowDestructiveSync: true,
+      });
+      setPreview(result.mapping);
+      setPendingDestructiveSync(null);
+      await qc.invalidateQueries({ queryKey: qk.connectorMappings(appCode, connector.id) });
+      setStatus(`Mappings saved and synced. ${result.sync.executedStatements} database change(s) applied.`);
+    } catch (err) {
+      setStatus("");
+      setError(err instanceof Error ? err.message : "Failed to apply destructive mapping changes.");
     }
   }
 
@@ -772,6 +803,19 @@ function DatabaseMappings({
               Save mappings
             </button>
           </div>
+          {error ? <div role="alert" style={mappingErrorBox}>{error}</div> : null}
+          {status ? <div role="status" aria-live="polite" style={pendingDestructiveSync ? mappingWarningBox : status.startsWith("Mappings saved and synced") ? mappingSuccessBox : mappingStatusBox}>{status}</div> : null}
+          {pendingDestructiveSync ? (
+            <div style={mappingWarningBox}>
+              <strong>Data loss warning</strong>
+              <ul style={warningList}>
+                {pendingDestructiveSync.sync.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+              </ul>
+              <button type="button" style={dangerButton} onClick={() => void confirmDestructiveSync()}>
+                Apply destructive changes
+              </button>
+            </div>
+          ) : null}
 
           {preview ? (
             <MappingTablesEditor
@@ -782,8 +826,6 @@ function DatabaseMappings({
               updateColumn={updateColumn}
             />
           ) : null}
-          {error ? <p style={errorText}>{error}</p> : null}
-          {status ? <p style={statusText}>{status}</p> : null}
         </div>
       ) : null}
     </section>
@@ -1202,6 +1244,11 @@ const mappingWorkflow: React.CSSProperties = { borderTop: "1px solid #e4e7ec", p
 const mappingControls: React.CSSProperties = { display: "grid", gridTemplateColumns: "minmax(240px, 1fr) auto auto", gap: 10, alignItems: "end" };
 const mappingTables: React.CSSProperties = { display: "grid", gap: 8 };
 const mappingTableBody: React.CSSProperties = { display: "grid", gap: 10, padding: 12 };
+const mappingStatusBox: React.CSSProperties = { border: "1px solid #b2ccff", borderRadius: 8, background: "#eff6ff", color: "#1849a9", padding: "10px 12px", fontSize: 13, fontWeight: 800 };
+const mappingSuccessBox: React.CSSProperties = { border: "1px solid #abefc6", borderRadius: 8, background: "#ecfdf3", color: "#067647", padding: "10px 12px", fontSize: 13, fontWeight: 800 };
+const mappingErrorBox: React.CSSProperties = { border: "1px solid #fecdca", borderRadius: 8, background: "#fffbfa", color: "#b42318", padding: "10px 12px", fontSize: 13, fontWeight: 800 };
+const mappingWarningBox: React.CSSProperties = { border: "1px solid #fedf89", borderRadius: 8, background: "#fffcf5", color: "#93370d", padding: "10px 12px", fontSize: 13, fontWeight: 800, display: "grid", gap: 8 };
+const warningList: React.CSSProperties = { margin: 0, paddingLeft: 18, display: "grid", gap: 4, fontWeight: 700 };
 const savedMappingList: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 8 };
 const savedMappingItem: React.CSSProperties = { border: "1px solid #e4e7ec", borderRadius: 8, background: "#f8fafc", padding: 10, display: "grid", gap: 4, textAlign: "left", cursor: "pointer" };
 const savedMappingTitle: React.CSSProperties = { fontWeight: 900, color: "#344054" };
@@ -1222,7 +1269,7 @@ const detailsWindow: React.CSSProperties = { border: "1px solid #d0d5dd", border
 const detailsHeader: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 14, alignItems: "flex-start", borderBottom: "1px solid #e4e7ec", paddingBottom: 14 };
 const detailsTitle: React.CSSProperties = { margin: 0, fontSize: 22 };
 const detailTabs: React.CSSProperties = { display: "flex", gap: 4, borderBottom: "1px solid #e4e7ec" };
-const tabButton: React.CSSProperties = { border: 0, borderBottom: "3px solid transparent", background: "transparent", color: "#667085", padding: "10px 12px", fontWeight: 900, cursor: "pointer" };
+const tabButton: React.CSSProperties = { borderTopWidth: 0, borderRightWidth: 0, borderLeftWidth: 0, borderBottomWidth: 3, borderBottomStyle: "solid", borderBottomColor: "transparent", background: "transparent", color: "#667085", padding: "10px 12px", fontWeight: 900, cursor: "pointer" };
 const activeTabButton: React.CSSProperties = { ...tabButton, borderBottomColor: "#175cd3", color: "#175cd3" };
 const configurationFooter: React.CSSProperties = { display: "flex", justifyContent: "flex-end", gap: 10, flexWrap: "wrap", borderTop: "1px solid #e4e7ec", paddingTop: 14 };
 const schemaToolbar: React.CSSProperties = { display: "flex", justifyContent: "flex-end" };
