@@ -32,21 +32,27 @@ type Stage =
   | { kind: "loadingBootstrap" }
   | { kind: "home"; appCode: string; forms: BootstrapFormItem[]; drafts: SavedDraft[]; activeTab: Tab }
   | { kind: "loadingForm"; appCode: string; forms: BootstrapFormItem[]; drafts: SavedDraft[]; activeTab: Tab; formKey: string }
-  | {
-      kind: "renderForm";
-      appCode: string;
-      formKey: string;
-      form: FormDefinition;
-      forms: BootstrapFormItem[];
-      drafts: SavedDraft[];
-      draftId?: string;
-      initialData?: FormState;
-      currentData?: FormState;
-      datasets?: DataSourceDatasetMap;
-      datasetStatus?: string;
-      formVariables?: Record<string, unknown>;
-      globalVariables?: Record<string, unknown>;
-    };
+  | RenderFormStage;
+
+type RenderFormStage = {
+  kind: "renderForm";
+  appCode: string;
+  formKey: string;
+  form: FormDefinition;
+  forms: BootstrapFormItem[];
+  drafts: SavedDraft[];
+  draftId?: string;
+  initialData?: FormState;
+  currentData?: FormState;
+  datasets?: DataSourceDatasetMap;
+  datasetStatus?: string;
+  formVariables?: Record<string, unknown>;
+  globalVariables?: Record<string, unknown>;
+};
+
+type FormBackStackEntry = RenderFormStage & {
+  currentDraftId?: string;
+};
 
 export function AppBootstrapScreen() {
   const [appCodeInput, setAppCodeInput] = useState("DEMO01");
@@ -56,6 +62,7 @@ export function AppBootstrapScreen() {
   const [refreshingDrafts, setRefreshingDrafts] = useState(false);
   const [currentDraftId, setCurrentDraftId] = useState<string | undefined>(undefined);
   const [submitting, setSubmitting] = useState(false);
+  const [formBackStack, setFormBackStack] = useState<FormBackStackEntry[]>([]);
   const datasetRefreshRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -89,6 +96,7 @@ export function AppBootstrapScreen() {
     try {
       const boot = await api.bootstrap(appCode);
       const drafts = await listDrafts(boot.app.appCode);
+      setFormBackStack([]);
       setStage({ kind: "home", appCode: boot.app.appCode, forms: boot.forms, drafts, activeTab: "forms" });
     } catch (e: any) {
       setError(e.message ?? "Failed to bootstrap");
@@ -117,6 +125,7 @@ export function AppBootstrapScreen() {
     drafts: SavedDraft[],
     activeTab: Tab,
     initialData: FormState = {},
+    backStackEntry?: FormBackStackEntry,
   ) {
     setError("");
     setCurrentDraftId(undefined);
@@ -126,7 +135,7 @@ export function AppBootstrapScreen() {
       const form = await api.latestForm(appCode, formKey);
       const globalVariables = await loadGlobalVariables(appCode);
       const cached = await getCachedDatasets(appCode, form, initialData, { form: {}, global: globalVariables });
-      setStage({
+      const nextStage: RenderFormStage = {
         kind: "renderForm",
         appCode,
         formKey,
@@ -139,17 +148,25 @@ export function AppBootstrapScreen() {
         datasetStatus: cached ? "Using cached data" : undefined,
         formVariables: {},
         globalVariables,
-      });
+      };
+      setFormBackStack((current) => (backStackEntry ? [...current, backStackEntry] : []));
+      setStage(nextStage);
       void refreshDatasets(appCode, form, initialData, { form: {}, global: globalVariables });
     } catch (e: any) {
       setError(e.message ?? "Failed to load form");
-      setStage({ kind: "home", appCode, forms, drafts, activeTab });
+      if (backStackEntry) {
+        setCurrentDraftId(backStackEntry.currentDraftId ?? backStackEntry.draftId);
+        setStage(backStackEntry);
+      } else {
+        setStage({ kind: "home", appCode, forms, drafts, activeTab });
+      }
     }
   }
 
   async function openDraft(appCode: string, draft: SavedDraft, forms: BootstrapFormItem[], drafts: SavedDraft[]) {
     setError("");
     setCurrentDraftId(draft.id);
+    setFormBackStack([]);
     setStage({ kind: "loadingForm", appCode, formKey: draft.formKey, forms, drafts, activeTab: "drafts" });
 
     try {
@@ -203,6 +220,7 @@ export function AppBootstrapScreen() {
 
   function goHome(nextDrafts?: SavedDraft[]) {
     if (stage.kind !== "renderForm") return;
+    setFormBackStack([]);
     setStage({
       kind: "home",
       appCode: stage.appCode,
@@ -210,6 +228,18 @@ export function AppBootstrapScreen() {
       drafts: nextDrafts ?? stage.drafts,
       activeTab: "forms",
     });
+  }
+
+  function goBack() {
+    if (stage.kind !== "renderForm") return;
+    const previous = formBackStack[formBackStack.length - 1];
+    if (!previous) {
+      goHome();
+      return;
+    }
+    setFormBackStack((current) => current.slice(0, -1));
+    setCurrentDraftId(previous.currentDraftId ?? previous.draftId);
+    setStage(previous);
   }
 
   async function refreshDatasets(appCode: string, form: FormDefinition, data: FormState, variables?: { form?: Record<string, unknown>; global?: Record<string, unknown> }) {
@@ -401,8 +431,13 @@ export function AppBootstrapScreen() {
     <View style={styles.full}>
       <SafeAreaView style={styles.safeTop}>
         <View style={styles.topBar}>
-          <Pressable style={styles.secondaryBtn} onPress={() => goHome()}>
-            <Text style={styles.secondaryBtnText}>Back to forms</Text>
+          <Pressable
+            style={styles.backIconBtn}
+            onPress={goBack}
+            accessibilityRole="button"
+            accessibilityLabel={formBackStack.length > 0 ? "Back to previous form" : "Back to forms"}
+          >
+            <Text style={styles.backIconText}>‹</Text>
           </Pressable>
 
           <Text style={styles.topBarTitle}>{stage.appCode}</Text>
@@ -488,12 +523,16 @@ export function AppBootstrapScreen() {
           const targetAppCode = request.appCode ?? stage.appCode;
           let forms = stage.forms;
           let drafts = stage.drafts;
+          const previousStage: FormBackStackEntry = {
+            ...stage,
+            currentDraftId: currentDraftId ?? stage.draftId,
+          };
           if (targetAppCode !== stage.appCode) {
             const boot = await api.bootstrap(targetAppCode);
             forms = boot.forms;
             drafts = await listDrafts(boot.app.appCode);
           }
-          await openForm(targetAppCode, request.formKey, forms, drafts, "forms", request.initialData ?? {});
+          await openForm(targetAppCode, request.formKey, forms, drafts, "forms", request.initialData ?? {}, previousStage);
         }}
       />
       {submitting ? (
@@ -591,6 +630,17 @@ const styles = StyleSheet.create({
 
   safeTop: { backgroundColor: "#fff" },
   topBar: { padding: 12, borderBottomWidth: 1, borderColor: "#eee", flexDirection: "row", gap: 10, alignItems: "center" },
+  backIconBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#ddd",
+    backgroundColor: "#fff",
+  },
+  backIconText: { fontSize: 34, lineHeight: 36, fontWeight: "500", color: "#111" },
   topBarTitle: { fontWeight: "700", marginLeft: "auto" },
   datasetStatus: { color: "#667085", fontSize: 12 },
   submitOverlay: {
