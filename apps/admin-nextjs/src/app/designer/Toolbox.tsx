@@ -16,6 +16,7 @@ type ToolboxEntry = {
 const LAYOUTS: ToolboxEntry[] = [
   { label: "Stack", item: { kind: "layout", layoutType: "stack" }, icon: <StackIcon /> },
   { label: "Row", item: { kind: "layout", layoutType: "row" }, icon: <RowIcon /> },
+  { label: "Tabs", item: { kind: "layout", layoutType: "tabs" }, icon: <TabsIcon /> },
   { label: "Repeat Section", item: { kind: "layout", layoutType: "repeater" }, icon: <RepeatIcon /> },
 ];
 
@@ -24,6 +25,7 @@ const CONTROLS: ToolboxEntry[] = [
   { label: "Number", item: { kind: "control", controlType: "number" }, icon: <NumberIcon /> },
   { label: "Switch", item: { kind: "control", controlType: "switch" }, icon: <SwitchIcon /> },
   { label: "Dropdown", item: { kind: "control", controlType: "dropdown" }, icon: <DropdownIcon /> },
+  { label: "Segmented", item: { kind: "control", controlType: "segmented" }, icon: <SegmentedIcon /> },
   { label: "Multi Select", item: { kind: "control", controlType: "multiselect" }, icon: <MultiSelectIcon /> },
   { label: "Date", item: { kind: "control", controlType: "date" }, icon: <DateIcon /> },
   { label: "Signature", item: { kind: "control", controlType: "signature" }, icon: <SignatureIcon /> },
@@ -285,6 +287,15 @@ function RowIcon() {
   );
 }
 
+function TabsIcon() {
+  return (
+    <svg viewBox="0 0 16 16" style={iconBase} aria-hidden>
+      <path d="M2 5.5h12v8H2z" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinejoin="round" />
+      <path d="M2 5.5V3h4v2.5M6 5.5V3h4v2.5" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function RepeatIcon() {
   return (
     <svg viewBox="0 0 16 16" style={iconBase} aria-hidden>
@@ -324,6 +335,16 @@ function DropdownIcon() {
     <svg viewBox="0 0 16 16" style={iconBase} aria-hidden>
       <path d="M3 4h10M3 7h10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
       <path d="M5 10l3 3 3-3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function SegmentedIcon() {
+  return (
+    <svg viewBox="0 0 16 16" style={iconBase} aria-hidden>
+      <rect x="1.5" y="4.5" width="13" height="7" rx="2" stroke="currentColor" strokeWidth="1.4" fill="none" />
+      <path d="M6 4.5v7M10 4.5v7" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M2.5 5.5h2.5v5H2.5z" fill="currentColor" opacity="0.85" />
     </svg>
   );
 }

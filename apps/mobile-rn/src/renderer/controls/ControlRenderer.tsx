@@ -11,6 +11,7 @@ import { FileControl } from "./FileControl";
 import { ImageControl } from "./ImageControl";
 import { MultiSelectControl } from "./MultiSelectControl";
 import { NumberControl } from "./NumberControl";
+import { SegmentedControl } from "./SegmentedControl";
 import { SignatureControl } from "./SignatureControl";
 import { SwitchControl } from "./SwitchControl";
 import { TextControl } from "./TextControl";
@@ -43,6 +44,8 @@ export function ControlRenderer({ node, value, rootData, datasets, variables, ro
       return <SwitchControl node={node} value={value} setValue={setValue} error={error} />;
     case "dropdown":
       return <DropdownControl node={node} value={value} setValue={setValue} error={error} />;
+    case "segmented":
+      return <SegmentedControl node={node} value={value} setValue={setValue} error={error} />;
     case "multiselect":
       return <MultiSelectControl node={node} value={value} setValue={setValue} error={error} />;
     case "date":

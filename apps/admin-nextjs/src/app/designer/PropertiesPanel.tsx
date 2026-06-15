@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import type { ButtonAction, Node } from "@transform/contracts/form-types";
+import type { ButtonAction, LayoutNode, Node } from "@transform/contracts/form-types";
 import { validateExpressionSyntax } from "@transform/contracts/expressions";
 import { ExpressionInput, type ExpressionFieldInfo } from "./ExpressionInput";
 import { isControl, isLayout } from "./types";
@@ -91,6 +91,9 @@ export function PropertiesPanel({
         <PanelHeader title="Properties" hint={`Layout: ${node.layoutType}`} onClose={onClose} />
         <div style={formGrid}>
           <TextField label="Label" value={(node as any).label ?? ""} onChange={(label) => onChange({ label })} />
+          {node.layoutType === "tabs" ? (
+            <TabsLayoutField node={node} onChange={onChange} />
+          ) : null}
           {node.layoutType === "repeater" ? (
             <>
               <TextField label="Key" value={(node as any).key ?? ""} onChange={(key) => onChange({ key })} />
@@ -240,6 +243,86 @@ export function PropertiesPanel({
   );
 }
 
+function TabsLayoutField({ node, onChange }: { node: LayoutNode; onChange: (patch: Partial<LayoutNode>) => void }) {
+  const props = (node.props ?? {}) as Record<string, unknown>;
+  const tabPages = node.children.filter(
+    (child): child is LayoutNode => child.type === "layout" && child.layoutType === "tab",
+  );
+  const otherChildren = node.children.filter(
+    (child) => child.type !== "layout" || child.layoutType !== "tab",
+  );
+  const defaultTabId = typeof props.defaultTabId === "string" && tabPages.some((tab) => tab.id === props.defaultTabId)
+    ? props.defaultTabId
+    : tabPages[0]?.id ?? "";
+
+  function commitTabs(nextTabs: LayoutNode[], nextDefaultTabId = defaultTabId) {
+    const resolvedDefault = nextTabs.some((tab) => tab.id === nextDefaultTabId)
+      ? nextDefaultTabId
+      : nextTabs[0]?.id;
+    onChange({
+      children: [...nextTabs, ...otherChildren],
+      props: { ...props, defaultTabId: resolvedDefault },
+    });
+  }
+
+  function addTab() {
+    const nextTab: LayoutNode = {
+      id: `tab_${Math.random().toString(36).slice(2, 10)}`,
+      type: "layout",
+      layoutType: "tab",
+      label: `Tab ${tabPages.length + 1}`,
+      children: [],
+    };
+    commitTabs([...tabPages, nextTab], defaultTabId || nextTab.id);
+  }
+
+  function moveTab(index: number, delta: number) {
+    const target = index + delta;
+    if (target < 0 || target >= tabPages.length) return;
+    const next = [...tabPages];
+    [next[index], next[target]] = [next[target], next[index]];
+    commitTabs(next);
+  }
+
+  return (
+    <>
+      <SectionTitle title="Tabs" />
+      {tabPages.length > 0 ? (
+        <label style={labelStyle}>
+          Default Tab
+          <select style={input} value={defaultTabId} onChange={(event) => commitTabs(tabPages, event.target.value)}>
+            {tabPages.map((tab) => <option key={tab.id} value={tab.id}>{tab.label || "Tab"}</option>)}
+          </select>
+        </label>
+      ) : null}
+      <div style={tabPageList}>
+        {tabPages.map((tab, index) => (
+          <div key={tab.id} style={tabPageCard}>
+            <input
+              aria-label={`Tab ${index + 1} label`}
+              style={input}
+              value={tab.label ?? ""}
+              onChange={(event) => commitTabs(tabPages.map((item) => item.id === tab.id ? { ...item, label: event.target.value } : item))}
+            />
+            <div style={rowActions}>
+              <IconButton label="Move tab up" disabled={index === 0} onClick={() => moveTab(index, -1)}>
+                <ArrowUpIcon />
+              </IconButton>
+              <IconButton label="Move tab down" disabled={index === tabPages.length - 1} onClick={() => moveTab(index, 1)}>
+                <ArrowDownIcon />
+              </IconButton>
+              <IconButton label="Delete tab" danger disabled={tabPages.length === 1} onClick={() => commitTabs(tabPages.filter((item) => item.id !== tab.id))}>
+                <TrashIcon />
+              </IconButton>
+            </div>
+          </div>
+        ))}
+      </div>
+      <button type="button" style={primarySmallButton} onClick={addTab}>Add Tab</button>
+    </>
+  );
+}
+
 function ControlSpecificFields({
   node,
   props,
@@ -285,15 +368,21 @@ function ControlSpecificFields({
       </>
     );
   }
-  if (node.controlType === "dropdown" || node.controlType === "multiselect") {
+  if (node.controlType === "dropdown" || node.controlType === "segmented" || node.controlType === "multiselect") {
     const optionsValue = isExpression(props.options)
       ? props.options
       : valueToOptionsText((Array.isArray(props.options) ? props.options : []) as Array<{ label: string; value: string }>);
     return (
       <>
-        <SectionTitle title="Select Control" />
-        <BoolField label="Searchable" value={props.searchable ?? false} expressionFields={expressionFields} onChange={(searchable) => setProps(onChange, node, "searchable", searchable)} />
-        <BoolField label="Clearable" value={props.clearable ?? false} expressionFields={expressionFields} onChange={(clearable) => setProps(onChange, node, "clearable", clearable)} />
+        <SectionTitle title={node.controlType === "segmented" ? "Segmented Control" : "Select Control"} />
+        {node.controlType === "segmented" ? (
+          <BoolField label="Allow Deselect" value={props.allowDeselect ?? false} expressionFields={expressionFields} onChange={(allowDeselect) => setProps(onChange, node, "allowDeselect", allowDeselect)} />
+        ) : (
+          <>
+            <BoolField label="Searchable" value={props.searchable ?? false} expressionFields={expressionFields} onChange={(searchable) => setProps(onChange, node, "searchable", searchable)} />
+            <BoolField label="Clearable" value={props.clearable ?? false} expressionFields={expressionFields} onChange={(clearable) => setProps(onChange, node, "clearable", clearable)} />
+          </>
+        )}
         <TextAreaField
           label="Options"
           value={optionsValue}
@@ -850,6 +939,8 @@ const input: React.CSSProperties = {
 const formulaOk: React.CSSProperties = { color: "#067647", fontSize: 12, fontWeight: 700 };
 const formulaError: React.CSSProperties = { color: "#b42318", fontSize: 12, fontWeight: 700 };
 const actionEditor: React.CSSProperties = { display: "grid", gap: 12 };
+const tabPageList: React.CSSProperties = { display: "grid", gap: 10 };
+const tabPageCard: React.CSSProperties = { display: "grid", gap: 10, border: "1px solid #dfe6f0", borderRadius: 8, padding: 12, background: "#f8fafc" };
 const buttonActionCard: React.CSSProperties = { display: "grid", gap: 10, border: "1px solid #dfe6f0", borderRadius: 8, padding: 12, background: "#f8fafc" };
 const actionRow: React.CSSProperties = { display: "flex", gap: 10, alignItems: "end" };
 const rowActions: React.CSSProperties = { display: "flex", gap: 8, flexWrap: "wrap" };

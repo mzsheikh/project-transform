@@ -5,6 +5,7 @@ import type {
   LayoutNode,
   MultiSelectProps,
   Node,
+  SegmentedProps,
   TextProps,
   ButtonProps,
   ListViewProps,
@@ -58,6 +59,12 @@ export function addChild(parent: LayoutNode, child: Node): LayoutNode {
 }
 
 export function makeLayout(layoutType: LayoutNode["layoutType"]): LayoutNode {
+  const tabs = layoutType === "tabs"
+    ? [
+        { type: "layout", layoutType: "tab", id: uuidLike(), label: "Tab 1", children: [] } as LayoutNode,
+        { type: "layout", layoutType: "tab", id: uuidLike(), label: "Tab 2", children: [] } as LayoutNode,
+      ]
+    : [];
   const layout: LayoutNode = {
     type: "layout",
     layoutType,
@@ -70,7 +77,8 @@ export function makeLayout(layoutType: LayoutNode["layoutType"]): LayoutNode {
           props: { minItems: 0, defaultItems: 1 },
         }
       : {}),
-    children: [],
+    ...(layoutType === "tabs" ? { label: "Tabs", props: { defaultTabId: tabs[0]?.id } } : {}),
+    children: tabs,
   };
 
   return layout;
@@ -87,13 +95,13 @@ export function makeControl(controlType: ControlNode["controlType"]): ControlNod
     validation: {},
   };
 
-  if (controlType === "dropdown" || controlType === "multiselect") {
+  if (controlType === "dropdown" || controlType === "segmented" || controlType === "multiselect") {
     base.props = {
       options: [
         { label: "Option A", value: "a" },
         { label: "Option B", value: "b" },
       ],
-    } satisfies DropdownProps | MultiSelectProps;
+    } satisfies DropdownProps | SegmentedProps | MultiSelectProps;
   }
 
   if (controlType === "text") {

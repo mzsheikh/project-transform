@@ -177,6 +177,29 @@ Example dropdown options from a data source:
 =OPTIONS(DATA("customers"), "name", "id")
 ```
 
+Segmented controls use the same option shape and expressions as dropdowns. They
+display the available values side by side and save one selected value:
+
+```json
+{
+  "key": "orderStatus",
+  "controlType": "segmented",
+  "props": {
+    "options": [
+      { "label": "Open", "value": "open" },
+      { "label": "Closed", "value": "closed" }
+    ],
+    "allowDeselect": false
+  }
+}
+```
+
+Bind segments to a dataset:
+
+```text
+=OPTIONS(DATA("statuses"), "name", "id")
+```
+
 Example read-only selected customer name:
 
 ```text
@@ -517,7 +540,7 @@ Date units can be written as singular or plural values such as `"day"`,
 | `HASALL(list, value, ...)` | True when list contains all values. | `=HASALL(requiredDocs, "id", "photo")` |
 | `LIST(value, ...)` | Builds a list. | `=LIST("a", "b", "c")` |
 | `OPTION(label, value, disabled)` | Builds one option. `disabled` is optional. | `=OPTION("High", "high", FALSE)` |
-| `OPTIONS(value, ...)` | Builds dropdown or multiselect options. | `=OPTIONS("High", "high", "Low", "low")` |
+| `OPTIONS(value, ...)` | Builds dropdown, segmented, or multiselect options. | `=OPTIONS("High", "high", "Low", "low")` |
 
 `OPTIONS` supports two styles:
 

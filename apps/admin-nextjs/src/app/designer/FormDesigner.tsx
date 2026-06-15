@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import type { ButtonAction, ControlNode, FormDefinition, LayoutNode, Node } from "@transform/contracts/form-types";
+import type { ButtonAction, ControlNode, FormDefinition, LayoutNode, Node, TabsProps } from "@transform/contracts/form-types";
 import { formHasExpressions, validateFormExpressions } from "@transform/contracts/expressions";
 import { Toolbox, type ToolboxItem } from "./Toolbox";
 import { CanvasTree } from "./CanvasTree";
@@ -370,10 +370,13 @@ export function FormDesigner({
 }
 
 function withExpressionSchemaVersion(schema: FormDefinition): FormDefinition {
-  if (formRequiresActionSchema(schema.root) && schema.schemaVersion !== "1.3") {
+  if (formHasTabsLayout(schema.root) && schema.schemaVersion !== "1.4") {
+    return { ...schema, schemaVersion: "1.4" };
+  }
+  if (formRequiresActionSchema(schema.root) && schema.schemaVersion !== "1.3" && schema.schemaVersion !== "1.4") {
     return { ...schema, schemaVersion: "1.3" };
   }
-  if (formHasButtonControls(schema.root) && schema.schemaVersion !== "1.2" && schema.schemaVersion !== "1.3") {
+  if (formHasButtonControls(schema.root) && schema.schemaVersion !== "1.2" && schema.schemaVersion !== "1.3" && schema.schemaVersion !== "1.4") {
     return { ...schema, schemaVersion: "1.2" };
   }
   return formHasExpressions(schema) && schema.schemaVersion === "1.0"
@@ -386,10 +389,15 @@ function formHasButtonControls(node: Node): boolean {
   return node.children.some(formHasButtonControls);
 }
 
+function formHasTabsLayout(node: Node): boolean {
+  if (node.type === "control") return false;
+  return node.layoutType === "tabs" || node.children.some(formHasTabsLayout);
+}
+
 function formRequiresActionSchema(node: Node): boolean {
   if (node.type === "control") {
     const actions = Array.isArray(node.props?.actions) ? (node.props.actions as ButtonAction[]) : [];
-    return node.controlType === "listview" || actions.some((action) => action.type === "set_variable" || action.type === "open_form");
+    return node.controlType === "listview" || node.controlType === "segmented" || actions.some((action) => action.type === "set_variable" || action.type === "open_form");
   }
   return node.children.some(formRequiresActionSchema);
 }
@@ -473,6 +481,9 @@ function getNodePathFromNode(node: Node, selectedId: string): string[] | null {
 
 function PreviewNode({ node }: { node: Node }) {
   if (node.type === "layout") {
+    if (node.layoutType === "tabs") {
+      return <PreviewTabsLayout node={node} />;
+    }
     if (node.layoutType === "repeater") {
       const props = (node.props ?? {}) as Record<string, any>;
       return (
@@ -505,7 +516,54 @@ function PreviewNode({ node }: { node: Node }) {
   );
 }
 
+function PreviewTabsLayout({ node }: { node: LayoutNode }) {
+  const tabs = node.children.filter(
+    (child): child is LayoutNode => child.type === "layout" && child.layoutType === "tab",
+  );
+  const tabsProps = node.props as TabsProps | undefined;
+  const configuredDefault = typeof tabsProps?.defaultTabId === "string" ? tabsProps.defaultTabId : "";
+  const defaultTab = tabs.find((tab) => tab.id === configuredDefault) ?? tabs[0];
+  const [activeTabId, setActiveTabId] = useState(defaultTab?.id);
+  const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? defaultTab;
+
+  return (
+    <div style={previewTabs}>
+      <div style={previewTabBar}>
+        {tabs.map((tab) => (
+          <button
+            type="button"
+            key={tab.id}
+            style={{ ...previewTab, ...(tab.id === activeTab?.id ? previewTabActive : null) }}
+            onClick={() => setActiveTabId(tab.id)}
+          >
+            {tab.label || "Tab"}
+          </button>
+        ))}
+      </div>
+      <div style={previewTabContent}>
+        {activeTab?.children.length
+          ? activeTab.children.map((child) => <PreviewNode key={child.id} node={child} />)
+          : <div style={previewEmpty}>Empty tab</div>}
+      </div>
+    </div>
+  );
+}
+
 function previewControl(node: ControlNode, props: Record<string, any>) {
+  if (node.controlType === "segmented") {
+    const options = Array.isArray(props.options) ? props.options.slice(0, 4) : [];
+    return (
+      <div style={previewSegmented}>
+        {(options.length ? options : [{ label: "Option A", value: "a" }, { label: "Option B", value: "b" }]).map(
+          (option: { label?: string; value?: string }, index: number) => (
+            <span key={option.value ?? index} style={{ ...previewSegment, ...(index === 0 ? previewFirstSegment : null), ...(index === 0 ? previewSegmentSelected : null) }}>
+              {option.label ?? option.value ?? `Option ${index + 1}`}
+            </span>
+          ),
+        )}
+      </div>
+    );
+  }
   if (node.controlType === "dropdown" || node.controlType === "multiselect") {
     return <select style={previewInput}><option>{props.placeholder || "Select..."}</option></select>;
   }
@@ -796,6 +854,15 @@ const previewRow: React.CSSProperties = { display: "grid", gridTemplateColumns: 
 const previewField: React.CSSProperties = { display: "grid", gap: 7, color: "#344054", fontWeight: 700 };
 const previewLabel: React.CSSProperties = { fontSize: 14 };
 const previewInput: React.CSSProperties = { minHeight: 42, border: "1px solid #d0d5dd", borderRadius: 10, padding: "10px 12px", background: "#fff" };
+const previewTabs: React.CSSProperties = { display: "grid", gap: 14 };
+const previewTabBar: React.CSSProperties = { display: "flex", overflow: "hidden", borderBottomWidth: 1, borderBottomStyle: "solid", borderBottomColor: "#d0d5dd" };
+const previewTab: React.CSSProperties = { padding: "10px 14px", borderTopWidth: 0, borderRightWidth: 0, borderBottomWidth: 3, borderLeftWidth: 0, borderBottomStyle: "solid", borderBottomColor: "transparent", background: "transparent", color: "#667085", fontSize: 13, fontWeight: 800, cursor: "pointer" };
+const previewTabActive: React.CSSProperties = { borderBottomColor: "#175cd3", color: "#175cd3" };
+const previewTabContent: React.CSSProperties = { display: "grid", gap: 16 };
+const previewSegmented: React.CSSProperties = { display: "flex", alignItems: "stretch", width: "fit-content", maxWidth: "100%", overflow: "hidden", border: "1px solid #98a2b3", borderRadius: 8, background: "#fff" };
+const previewSegment: React.CSSProperties = { minWidth: 76, padding: "9px 12px", borderLeftWidth: 1, borderLeftStyle: "solid", borderLeftColor: "#98a2b3", color: "#344054", fontSize: 13, textAlign: "center" };
+const previewFirstSegment: React.CSSProperties = { borderLeftWidth: 0 };
+const previewSegmentSelected: React.CSSProperties = { background: "#111827", color: "#fff" };
 const previewButton: React.CSSProperties = { minHeight: 42, border: 0, borderRadius: 10, padding: "10px 14px", background: "#111827", color: "#fff", fontWeight: 800, textAlign: "center" };
 const previewListView: React.CSSProperties = { border: "1px solid #d0d5dd", borderRadius: 10, overflow: "hidden", background: "#fff" };
 const previewListItem: React.CSSProperties = { display: "grid", gap: 4, padding: "10px 12px", borderBottom: "1px solid #eef2f6", color: "#344054" };

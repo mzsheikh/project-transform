@@ -117,6 +117,42 @@ function uid(prefix = "n") {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
 }
 
+function makeTabPage(label: string): LayoutNode {
+  return {
+    id: uid("tab"),
+    type: "layout",
+    layoutType: "tab",
+    label,
+    children: [],
+  };
+}
+
+function findLayoutById(node: LayoutNode, id: string): LayoutNode | null {
+  if (node.id === id) return node;
+  for (const child of node.children) {
+    if (child.type !== "layout") continue;
+    const found = findLayoutById(child, id);
+    if (found) return found;
+  }
+  return null;
+}
+
+function insertionParentFor(root: LayoutNode, requestedParentId: string, child: Node): string | null {
+  const requestedParent = findLayoutById(root, requestedParentId);
+  if (!requestedParent) return null;
+
+  if (requestedParent.layoutType === "tabs") {
+    if (child.type === "layout" && child.layoutType === "tab") return requestedParent.id;
+    const firstTab = requestedParent.children.find(
+      (node): node is LayoutNode => node.type === "layout" && node.layoutType === "tab",
+    );
+    return firstTab?.id ?? null;
+  }
+
+  if (child.type === "layout" && child.layoutType === "tab") return null;
+  return requestedParent.id;
+}
+
 function nextControlKey(root: LayoutNode, controlType: ControlNode["controlType"]) {
   const re = new RegExp(`^${controlType}(\\d+)$`);
   let max = 0;
@@ -193,10 +229,14 @@ function cloneNodeForDuplicate(node: Node, usedKeys: Set<string>): Node {
     };
   }
 
+  const children = node.children.map((child) => cloneNodeForDuplicate(child, usedKeys));
   return {
     ...deepClone(node),
     id: uid("layout"),
-    children: node.children.map((child) => cloneNodeForDuplicate(child, usedKeys)),
+    ...(node.layoutType === "tabs"
+      ? { props: { ...(node.props ?? {}), defaultTabId: children[0]?.id } }
+      : {}),
+    children,
   };
 }
 
@@ -321,13 +361,44 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
   removeNode: (id) => {
     const cur = get().schema;
     if (!cur) return;
+    const found = findNodeWithParent(cur.root, id);
+    if (
+      found?.node.type === "layout" &&
+      found.node.layoutType === "tab" &&
+      found.parent.layoutType === "tabs"
+    ) {
+      const tabCount = found.parent.children.filter(
+        (child) => child.type === "layout" && child.layoutType === "tab",
+      ).length;
+      if (tabCount <= 1) return;
+    }
+
+    let nextRoot: LayoutNode = {
+      ...cur.root,
+      children: removeNodeDeep(cur.root.children, id),
+    };
+    if (
+      found?.node.type === "layout" &&
+      found.node.layoutType === "tab" &&
+      found.parent.layoutType === "tabs" &&
+      (found.parent.props as Record<string, unknown> | undefined)?.defaultTabId === id
+    ) {
+      const nextDefaultTab = found.parent.children.find(
+        (child) => child.id !== id && child.type === "layout" && child.layoutType === "tab",
+      );
+      nextRoot = {
+        ...nextRoot,
+        children: updateNodeDeep(nextRoot.children, found.parent.id, (node) => (
+          node.type === "layout"
+            ? { ...node, props: { ...(node.props ?? {}), defaultTabId: nextDefaultTab?.id } }
+            : node
+        )),
+      };
+    }
 
     const next: FormDefinition = {
       ...cur,
-      root: {
-        ...cur.root,
-        children: removeNodeDeep(cur.root.children, id),
-      },
+      root: nextRoot,
     };
 
     set((state) => ({
@@ -344,10 +415,12 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
 
     const found = findNodeWithParent(cur.root, id);
     if (!found) return;
-    if (found.node.type === "layout" && containsNode(found.node, parentLayoutId)) return;
+    const resolvedParentLayoutId = insertionParentFor(cur.root, parentLayoutId, found.node);
+    if (!resolvedParentLayoutId) return;
+    if (found.node.type === "layout" && containsNode(found.node, resolvedParentLayoutId)) return;
 
     const adjustedIndex =
-      found.parent.id === parentLayoutId && found.index < insertIndex
+      found.parent.id === resolvedParentLayoutId && found.index < insertIndex
         ? insertIndex - 1
         : insertIndex;
 
@@ -358,7 +431,7 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
         children: removeNodeDeep(cur.root.children, id),
       },
     };
-    const nextRoot = insertNodeIntoLayout(withoutMoved.root, parentLayoutId, found.node, adjustedIndex);
+    const nextRoot = insertNodeIntoLayout(withoutMoved.root, resolvedParentLayoutId, found.node, adjustedIndex);
 
     set((state) => ({
       schema: { ...cur, root: nextRoot },
@@ -413,19 +486,27 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
       id: uid("layout"),
       type: "layout",
       layoutType,
-      label: layoutType,
+      label: layoutType === "repeater" ? "Repeat Section" : layoutType === "tabs" ? "Tabs" : layoutType,
       ...(layoutType === "repeater"
         ? {
             key: nextLayoutKey(cur.root, layoutType),
-            label: "Repeat Section",
             props: { minItems: 0, defaultItems: 1 },
           }
         : {}),
-      children: [],
+      ...(layoutType === "tabs"
+        ? {
+            children: [makeTabPage("Tab 1"), makeTabPage("Tab 2")],
+          }
+        : { children: [] }),
     };
+    if (layoutType === "tabs") {
+      newLayout.props = { defaultTabId: newLayout.children[0]?.id };
+    }
+    const resolvedParentLayoutId = insertionParentFor(cur.root, parentLayoutId, newLayout);
+    if (!resolvedParentLayoutId) return;
 
     const nextRoot: LayoutNode =
-      cur.root.id === parentLayoutId
+      cur.root.id === resolvedParentLayoutId
         ? {
             ...cur.root,
             children: (() => {
@@ -440,7 +521,7 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
           }
         : {
             ...cur.root,
-            children: insertChildToLayout(cur.root.children, parentLayoutId, newLayout, insertIndex),
+            children: insertChildToLayout(cur.root.children, resolvedParentLayoutId, newLayout, insertIndex),
           };
 
     const next: FormDefinition = {
@@ -469,6 +550,15 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
       props: {},
     };
 
+    if (controlType === "dropdown" || controlType === "segmented" || controlType === "multiselect") {
+      newControl.props = {
+        options: [
+          { label: "Option A", value: "a" },
+          { label: "Option B", value: "b" },
+        ],
+      };
+    }
+
     if (controlType === "button") {
       newControl.label = "Button";
       newControl.props = {
@@ -490,9 +580,11 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
         actions: [],
       };
     }
+    const resolvedParentLayoutId = insertionParentFor(cur.root, parentLayoutId, newControl);
+    if (!resolvedParentLayoutId) return;
 
     const nextRoot: LayoutNode =
-      cur.root.id === parentLayoutId
+      cur.root.id === resolvedParentLayoutId
         ? {
             ...cur.root,
             children: (() => {
@@ -507,7 +599,7 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
           }
         : {
             ...cur.root,
-            children: insertChildToLayout(cur.root.children, parentLayoutId, newControl, insertIndex),
+            children: insertChildToLayout(cur.root.children, resolvedParentLayoutId, newControl, insertIndex),
           };
 
     const next: FormDefinition = {

@@ -3,7 +3,7 @@
 import type { SubmitActionType } from "./action-types";
 import type { SubmissionDataValue } from "./submission-types";
 
-export type SchemaVersion = "1.0" | "1.1" | "1.2" | "1.3";
+export type SchemaVersion = "1.0" | "1.1" | "1.2" | "1.3" | "1.4";
 export type ExpressionString = `=${string}`;
 export type DynamicValue<T> = T | ExpressionString;
 
@@ -88,7 +88,7 @@ export type Condition =
 export type Node = LayoutNode | ControlNode;
 
 /** Layouts */
-export type LayoutType = "form" | "stack" | "row" | "section" | "repeater";
+export type LayoutType = "form" | "stack" | "row" | "section" | "repeater" | "tabs" | "tab";
 
 export interface LayoutNode extends BaseNode {
   type: "layout";
@@ -102,7 +102,8 @@ export type LayoutProps =
   | { gap?: number } // stack
   | { gap?: number; wrap?: boolean } // row
   | { collapsible?: boolean; defaultCollapsed?: boolean } // section
-  | RepeatSectionProps;
+  | RepeatSectionProps
+  | TabsProps;
 
 export interface RepeatSectionProps {
   minItems?: number;
@@ -112,12 +113,17 @@ export interface RepeatSectionProps {
   removeButtonLabel?: string;
 }
 
+export interface TabsProps {
+  defaultTabId?: string;
+}
+
 /** Controls */
 export type ControlType =
   | "text"
   | "number"
   | "switch"
   | "dropdown"
+  | "segmented"
   | "multiselect"
   | "date"
   | "signature"
@@ -139,6 +145,7 @@ export type ControlProps =
   | NumberProps
   | SwitchProps
   | DropdownProps
+  | SegmentedProps
   | MultiSelectProps
   | DateProps
   | SignatureProps
@@ -261,6 +268,11 @@ export interface DropdownProps extends BaseControlProps {
   closeAfterSelect?: boolean;
   showSearchInput?: boolean;
   disabled?: DynamicValue<boolean>;
+}
+
+export interface SegmentedProps extends BaseControlProps {
+  options: DynamicValue<RNOption[]>;
+  allowDeselect?: DynamicValue<boolean>;
 }
 
 export interface MultiSelectProps extends BaseControlProps {

@@ -170,6 +170,8 @@ function TreeNode({
               <span style={nodeTitle}>
                 {node.layoutType === "repeater"
                   ? `layout: repeat section (${node.key ?? node.id})`
+                  : node.layoutType === "tab"
+                    ? `tab: ${node.label || "Untitled"}`
                   : `layout: ${node.layoutType}`}
               </span>
             </div>
@@ -315,7 +317,7 @@ function controlIcon(type: ControlNode["controlType"]) {
   if (type === "number") return <span style={{ fontWeight: 900, fontSize: 22 }}>#</span>;
   if (type === "signature") return <SignatureIcon />;
   if (type === "date") return <CalendarIcon />;
-  if (type === "dropdown" || type === "multiselect") return <ChevronListIcon />;
+  if (type === "dropdown" || type === "segmented" || type === "multiselect") return <ChevronListIcon />;
   if (type === "file" || type === "image") return <FileIcon />;
   if (type === "button") return <ButtonIcon />;
   if (type === "listview") return <ChevronListIcon />;

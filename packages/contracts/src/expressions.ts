@@ -644,6 +644,7 @@ function coerceSubmissionValue(
     case "text":
     case "date":
     case "dropdown":
+    case "segmented":
     case "signature":
       return typeof value === "string"
         ? { ok: true, value }
