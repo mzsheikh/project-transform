@@ -4,7 +4,7 @@ import { View, Text, Pressable, ScrollView } from "react-native";
 import type { ButtonAction, ControlNode, DataSourceDatasetMap, FormDefinition, Node } from "@transform/contracts/form-types";
 
 import type { SubmissionDataValue } from "@transform/contracts/submission-types";
-import { evaluateCalculatedFormData, resolveDynamicValue } from "@transform/contracts/expressions";
+import { evaluateCalculatedFormData, resolveControlState, resolveDynamicValue } from "@transform/contracts/expressions";
 import { findControlNode, validateControlValue, validateFormData } from "@transform/contracts/form-validators";
 
 import { NodeRenderer } from "./NodeRenderer";
@@ -69,6 +69,7 @@ export function FormRenderer({
   }, [form, data, datasets, rendererVariables, onChange]);
 
   function setValue(key: string, value: SubmissionDataValue) {
+    const nextData = { ...data, [key]: value };
     setData((prev) => {
       const next = { ...prev, [key]: value };
       onChange?.(next);
@@ -79,7 +80,16 @@ export function FormRenderer({
     setErrors((prev) => {
       const control = findControlNode(form, key);
       if (!control) return prev;
-      const messages = validateControlValue(control, value);
+      const state = resolveControlState(control, {
+        rootData: nextData,
+        itemData: nextData,
+        datasets,
+        variables: rendererVariables,
+      });
+      const messages = [
+        ...state.errors.map((error) => error.message),
+        ...validateControlValue({ ...control, props: state.props as ControlNode["props"] }, value),
+      ];
       if (messages.length === 0) {
         if (!prev[key]) return prev;
         const next = { ...prev };

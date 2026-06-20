@@ -1,5 +1,6 @@
 import type { LayoutNode, Node, OptionItem } from "@transform/contracts/form-types";
 import type { FileRefLocal, SubmissionDataValue } from "@transform/contracts/submission-types";
+import { getResolvedControlOptions } from "@transform/contracts/form-validators";
 
 export function collectRequiredKeys(root: LayoutNode): string[] {
   const keys: string[] = [];
@@ -34,9 +35,7 @@ export function getBoolProp(props: unknown, key: string): boolean | undefined {
 }
 
 export function getOptions(props: unknown): OptionItem[] {
-  if (!props || typeof props !== "object") return [];
-  const v = (props as any).options;
-  return Array.isArray(v) ? (v as OptionItem[]) : [];
+  return getResolvedControlOptions(props);
 }
 
 export function isFileRef(v: SubmissionDataValue): v is FileRefLocal {

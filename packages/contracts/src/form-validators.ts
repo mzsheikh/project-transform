@@ -8,6 +8,7 @@ import type {
   MultiSelectProps,
   Node,
   NumberProps,
+  OptionItem,
   TextProps,
   FileProps,
   ValidationRules,
@@ -15,6 +16,7 @@ import type {
 import type { SubmissionDataValue } from "./submission-types";
 import {
   evaluateCalculatedFormData,
+  isExpressionString,
   resolveControlState,
   resolveDynamicValue,
 } from "./expressions";
@@ -45,11 +47,12 @@ function validateNode(
   errors: ValidationError[],
   datasets: DataSourceDatasetMap,
   variables: ExpressionVariableState,
+  rowIndex?: number,
 ) {
   if (node.type === "control") {
     if (node.controlType === "button" || isListViewControlType(node.controlType)) return;
     const props = (node.props ?? {}) as Record<string, unknown>;
-    const state = resolveControlState(node, { rootData, itemData: data, datasets, variables });
+    const state = resolveControlState(node, { rootData, itemData: data, rowIndex, datasets, variables });
     const errorKey = prefix ? `${prefix}.${node.key}` : node.key;
     for (const error of state.errors) {
       errors.push({ key: errorKey, message: error.message });
@@ -57,7 +60,7 @@ function validateNode(
     if (!state.visible) return;
     if (state.disabled && props.value === undefined) return;
 
-    const validation = resolveValidation(node, rootData, data, errorKey, errors, datasets, variables);
+    const validation = resolveValidation(node, rootData, data, errorKey, errors, datasets, variables, rowIndex);
     const effectiveNode: ControlNode = {
       ...node,
       props: state.props as ControlNode["props"],
@@ -74,7 +77,7 @@ function validateNode(
     return;
   }
 
-  node.children.forEach((child) => validateNode(child, rootData, data, prefix, errors, datasets, variables));
+  node.children.forEach((child) => validateNode(child, rootData, data, prefix, errors, datasets, variables, rowIndex));
 }
 
 function validateRepeater(
@@ -103,7 +106,7 @@ function validateRepeater(
 
   items.forEach((item, index) => {
     const childPrefix = `${errorKey}.${index}`;
-    node.children.forEach((child) => validateNode(child, rootData, item, childPrefix, errors, datasets, variables));
+    node.children.forEach((child) => validateNode(child, rootData, item, childPrefix, errors, datasets, variables, index));
   });
 }
 
@@ -118,6 +121,13 @@ export function validateControlValue(node: ControlNode, value: SubmissionDataVal
   }
 
   switch (node.controlType) {
+    case "dropdown":
+    case "segmented": {
+      const message = validateSingleOptionMembership(node.props, value);
+      if (message) errors.push(message);
+      return errors;
+    }
+
     case "text": {
       if (typeof value !== "string") return errors;
       const props = node.props as TextProps | undefined;
@@ -147,6 +157,14 @@ export function validateControlValue(node: ControlNode, value: SubmissionDataVal
     }
 
     case "multiselect": {
+      if (!isEmptyValue(value)) {
+        if (!Array.isArray(value)) {
+          errors.push("Select only available options.");
+          return errors;
+        }
+        const message = validateMultiOptionMembership(node.props, value);
+        if (message) errors.push(message);
+      }
       if (!Array.isArray(value)) return errors;
       const props = node.props as MultiSelectProps | undefined;
       const maxItems = numberValue(node.validation?.maxItems) ?? numberValue(props?.maxSelected);
@@ -186,9 +204,14 @@ function resolveValidation(
   errors: ValidationError[],
   datasets: DataSourceDatasetMap,
   variables: ExpressionVariableState,
+  rowIndex?: number,
 ): ValidationRules | undefined {
   if (!node.validation) return undefined;
-  const resolved = resolveDynamicValue(node.validation, { rootData, itemData: data, datasets, variables }, `controls.${node.key}.validation`);
+  const resolved = resolveDynamicValue(
+    node.validation,
+    { rootData, itemData: data, rowIndex, datasets, variables },
+    `controls.${node.key}.validation`,
+  );
   for (const error of resolved.errors) {
     errors.push({ key: errorKey, message: error.message });
   }
@@ -206,6 +229,10 @@ export function findControlNode(form: FormDefinition, key: string): ControlNode 
   return found;
 }
 
+export function getResolvedControlOptions(props: unknown): OptionItem[] {
+  return readResolvedOptions(props).options;
+}
+
 function walk(node: Node, fn: (n: Node) => void) {
   fn(node);
   if (node.type === "layout") node.children.forEach((c) => walk(c, fn));
@@ -220,6 +247,66 @@ function isEmptyValue(v: SubmissionDataValue): boolean {
 
 function isRecordValue(value: unknown): value is Record<string, SubmissionDataValue> {
   return !!value && typeof value === "object" && !Array.isArray(value) && !("fileId" in (value as Record<string, unknown>));
+}
+
+function validateSingleOptionMembership(props: unknown, value: SubmissionDataValue): string | undefined {
+  if (isEmptyValue(value)) return undefined;
+  if (typeof value !== "string") return "Select an available option.";
+
+  const resolution = readResolvedOptions(props);
+  if (!resolution.resolved) return undefined;
+  return selectableOptionValues(resolution.options).has(value) ? undefined : "Select an available option.";
+}
+
+function validateMultiOptionMembership(props: unknown, value: unknown[]): string | undefined {
+  if (!value.every((item) => typeof item === "string")) return "Select only available options.";
+
+  const resolution = readResolvedOptions(props);
+  if (!resolution.resolved) return undefined;
+  const available = selectableOptionValues(resolution.options);
+  return value.every((item) => available.has(item)) ? undefined : "Select only available options.";
+}
+
+function readResolvedOptions(props: unknown): { resolved: boolean; options: OptionItem[] } {
+  if (!isRecord(props)) return { resolved: true, options: [] };
+  const rawOptions = props.options;
+  if (isExpressionString(rawOptions)) return { resolved: false, options: [] };
+  return { resolved: true, options: normalizeOptions(rawOptions) };
+}
+
+function normalizeOptions(value: unknown): OptionItem[] {
+  if (!Array.isArray(value)) return [];
+  const options: OptionItem[] = [];
+  for (const item of value) {
+    if (!isRecord(item)) continue;
+    const optionValue = optionText(item.value);
+    if (optionValue === undefined) continue;
+    const label = optionText(item.label) ?? optionValue;
+    options.push({
+      label,
+      value: optionValue,
+      ...(item.disabled === true ? { disabled: true } : {}),
+    });
+  }
+  return options;
+}
+
+function selectableOptionValues(options: OptionItem[]): Set<string> {
+  const values = new Set<string>();
+  for (const option of options) {
+    if (option.disabled !== true) values.add(option.value);
+  }
+  return values;
+}
+
+function optionText(value: unknown): string | undefined {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
 function isListViewControlType(controlType: unknown): boolean {
